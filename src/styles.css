@@ -338,8 +338,12 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   height: 30px;
   border-radius: 999px;
   flex: 0 0 auto;
-  font-size: 13px;
 }
+/* Ink like the rest of the chrome, and a little quieter than the text beside
+   it — a microphone that is merely available should not compete with what the
+   person is writing. */
+.floor-mic { color: var(--muted); }
+.floor-mic:hover { color: var(--ink); }
 .floor-stop { background: var(--red); color: #fff; }
 .floor-note {
   max-width: 720px;
