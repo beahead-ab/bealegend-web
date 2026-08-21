@@ -1,9 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { useConversation } from "./conversation";
 import { CoachFloor } from "./CoachFloor";
 import { actionSymbol, receiptText, splitProse, threadDays } from "./thread";
 
 type Conversation = ReturnType<typeof useConversation>;
+
+/** Close enough to the bottom that following the answer is what the reader
+ *  wants. Anywhere above this, they are reading something and moving them is
+ *  taking the thread away from them. */
+const NEAR_BOTTOM_PX = 80;
+
+function isNearBottom(element: HTMLElement): boolean {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= NEAR_BOTTOM_PX;
+}
 
 /**
  * The thread (§4): one continuous conversation with day dividers, the mark as
@@ -16,12 +25,36 @@ export function CoachThread({
   conversation: Conversation;
   onClose: () => void;
 }) {
-  const bottom = useRef<HTMLDivElement>(null);
+  const scroll = useRef<HTMLDivElement>(null);
+  const [behind, setBehind] = useState(false);
   const days = threadDays(conversation.messages);
 
+  /**
+   * Follow the answer only for a reader who is already at the bottom. A streamed
+   * reply changes `messages` for every token, so scrolling on each change drags
+   * someone reading Tuesday's answer back down several times a second.
+   *
+   * `scrollTop` rather than `scrollIntoView`: the latter moves the nearest
+   * scrolling ancestor, which on iOS can pull the whole page under the fixed
+   * floor.
+   */
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
+    const element = scroll.current;
+    if (!element) return;
+    if (isNearBottom(element)) {
+      element.scrollTop = element.scrollHeight;
+      setBehind(false);
+    } else {
+      setBehind(true);
+    }
   }, [conversation.messages]);
+
+  const toBottom = () => {
+    const element = scroll.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    setBehind(false);
+  };
 
   return (
     <div className="thread">
@@ -41,7 +74,11 @@ export function CoachThread({
         </button>
       </header>
 
-      <div className="thread-scroll">
+      <div
+        className="thread-scroll"
+        ref={scroll}
+        onScroll={(event) => setBehind(!isNearBottom(event.currentTarget))}
+      >
         {conversation.hasMore && (
           <button className="thread-earlier" onClick={() => void conversation.loadOlder()} disabled={conversation.loadingOlder}>
             {conversation.loadingOlder ? "Hämtar …" : "Visa tidigare samtal"}
@@ -85,8 +122,12 @@ export function CoachThread({
           </div>
         ))}
 
-        <div ref={bottom} />
+        <div />
       </div>
+
+      {behind && (
+        <button className="thread-catchup" onClick={toBottom}>Nytt svar ↓</button>
+      )}
 
       <CoachFloor conversation={conversation} onOpenThread={() => undefined} inThread />
     </div>

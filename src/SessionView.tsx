@@ -267,7 +267,7 @@ function Session({ session, activeRun }: { session: TrainingSession; activeRun: 
           to move to the phone should learn it while there is still time to. */}
       {!canRun(session) && <p className="session-notice">{modeReason(session)}</p>}
 
-      {state.error && <p className="error-message">{state.error}</p>}
+      {state.error && <p className="error-message" role="status">{state.error}</p>}
       {canRun(session) && <RunBar session={session} state={state} />}
 
       {blocks(session).map((block) => (
@@ -278,6 +278,24 @@ function Session({ session, activeRun }: { session: TrainingSession; activeRun: 
           ))}
         </section>
       ))}
+    </>
+  );
+}
+
+/** The pass before it arrives — same shape as the day's skeleton, so the two
+ *  surfaces wait in the same way. */
+function PassSkeleton() {
+  return (
+    <>
+      <div className="hero">
+        <div className="skeleton-line long" />
+        <span className="hero-rule" aria-hidden="true" />
+      </div>
+      <section className="card block-card">
+        <h2>Uppvärmning</h2>
+        <div className="skeleton-line short" />
+        <div className="skeleton-line short" />
+      </section>
     </>
   );
 }
@@ -296,15 +314,18 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
   const [home, setHome] = useState<TrainingHome | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     setError("");
     fetchTrainingHome(date)
       .then((result) => !cancelled && setHome(result))
-      .catch(() => !cancelled && setError("Passet kunde inte hämtas."));
+      // The pass already on screen stays. Mid-run, "load the page again" is the
+      // most expensive instruction this surface can give.
+      .catch(() => !cancelled && setError("Passet kunde inte hämtas just nu."));
     return () => { cancelled = true; };
-  }, [date]);
+  }, [date, attempt]);
 
   const sessions = home?.today_sessions ?? null;
   // A run already going wins over the day's list: the server allows one at a
@@ -322,7 +343,14 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
         </button>
       </header>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <div className="error-message" role="status">
+          <span>{error}</span>
+          <button className="pill" onClick={() => setAttempt((n) => n + 1)}>Försök igen</button>
+        </div>
+      )}
+
+      {!home && !error && <PassSkeleton />}
 
       {sessions && sessions.length === 0 && (
         <div className="hero">

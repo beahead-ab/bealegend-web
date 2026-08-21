@@ -124,14 +124,20 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
     return () => { cancelled = true; };
   }, [date]);
 
+  // Bumped to retry: the same fetch, run again, without a reload. Mid-pass,
+  // "load the page again" is the most expensive instruction the surface can give.
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     setError("");
     fetchOverview(date)
       .then((result) => !cancelled && setOverview(result))
-      .catch(() => !cancelled && setError("Dagen kunde inte hämtas."));
+      // The day already on screen is kept. Emptying the surface on a failed
+      // refresh throws away something correct in exchange for nothing.
+      .catch(() => !cancelled && setError("Dagen kunde inte hämtas just nu."));
     return () => { cancelled = true; };
-  }, [date]);
+  }, [date, attempt]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,7 +195,14 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         onSignOut={onSignOut}
       />
 
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <div className="error-message" role="status">
+          <span>{error}</span>
+          <button className="pill" onClick={() => setAttempt((n) => n + 1)}>Försök igen</button>
+        </div>
+      )}
+
+      {!overview && !error && <DaySkeleton />}
 
       {overview && (
         <>
@@ -222,6 +235,29 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
 
       <CoachFloor conversation={conversation} onOpenThread={() => setSurface("thread")} inThread={false} />
     </div>
+  );
+}
+
+/**
+ * The day before it arrives. Not a spinner and not a shimmer: a card in the
+ * height the real one will take, so nothing jumps when the answer lands and the
+ * first impression is a page loading rather than a page broken.
+ */
+function DaySkeleton() {
+  return (
+    <>
+      <div className="hero">
+        <div className="skeleton-line long" />
+        <span className="hero-rule" aria-hidden="true" />
+      </div>
+      {["Näring", "Träning"].map((group) => (
+        <section className="card group-card" key={group}>
+          <h2>{group}</h2>
+          <div className="skeleton-line short" />
+          <div className="skeleton-line short" />
+        </section>
+      ))}
+    </>
   );
 }
 
