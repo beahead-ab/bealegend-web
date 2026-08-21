@@ -71,6 +71,30 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .icon-button:hover { color: var(--ink); background: var(--surface); }
 
+/**
+ * The reset below strips buttons of their border and background, which takes
+ * the focus ring the system gave for free. Tabbing through Idag showed nothing
+ * at all — and on a client that often has a keyboard, that is not an edge case.
+ * Blue on focus is §8-compliant: focus is status, not decoration.
+ */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* A skeleton in the right height, drawn in the same line the cards already use.
+   No pulse: stillness is part of the chrome, and a shimmering placeholder is a
+   second visual language for "wait". */
+.skeleton-line {
+  height: 13px;
+  margin: 13px 0;
+  border-radius: 4px;
+  background: var(--line);
+}
+.skeleton-line.short { width: 40%; }
+.skeleton-line.long { width: 68%; }
+
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -93,6 +117,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .primary-button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .error-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 12px 0 0;
   padding: 10px 12px;
   border: 1px solid #e9b5af;
@@ -101,6 +128,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   color: #8d271f;
   font-size: 13px;
 }
+/* The way out sits inside the message, so the fix is where the problem is. */
+.error-message .pill { margin-left: auto; flex: none; color: var(--ink); }
 
 .centered {
   display: flex;
@@ -436,6 +465,20 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .thread-done:disabled { color: var(--muted); cursor: default; }
 
 .thread-scroll { flex: 1; overflow-y: auto; }
+
+/* Sits just above the floor, so the answer is offered rather than forced. */
+.thread-catchup {
+  position: fixed;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--canvas);
+  font-size: 13px;
+  font-weight: 500;
+}
 
 .thread-divider {
   margin: 18px 0 10px;
