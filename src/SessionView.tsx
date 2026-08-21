@@ -13,21 +13,96 @@ import {
   restLabel,
   setLine,
   sharedRest,
+  type PrescribedSet,
   type TrainingHome,
   type TrainingMoment,
   type TrainingRun,
   type TrainingSession,
 } from "./training";
-import { clockText, useRun } from "./useRun";
+import { clockText, setKey, useRun, type LoggedSet } from "./useRun";
 
 type Conversation = ReturnType<typeof useConversation>;
 
-function Moment({ moment, here }: { moment: TrainingMoment; here: boolean }) {
+function numberOrNull(text: string): number | null {
+  const value = Number(text.replace(",", "."));
+  return text.trim() !== "" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The current set, as a thing to confirm rather than a form to fill in. The
+ * prescription is already in the fields; someone mid-pass should be able to
+ * press one button with a bar still on their back.
+ */
+function SetLogger({ set, stepId, state }: {
+  set: PrescribedSet;
+  stepId: string;
+  state: ReturnType<typeof useRun>;
+}) {
+  const [repetitions, setRepetitions] = useState(set.repetitions != null ? String(set.repetitions) : "");
+  // Written the way the rest of the surface writes it: 82,5, not 82.5.
+  // numberOrNull reads the comma back, so typing either works.
+  const [weight, setWeight] = useState(
+    set.suggested_weight_kg != null ? set.suggested_weight_kg.toLocaleString("sv-SE") : "",
+  );
+  const [rpe, setRpe] = useState("");
+
+  const suggested = set.suggested_weight_kg;
+  const typedWeight = numberOrNull(weight);
+  // Unchanged means unsent: the server then records the weight it froze at the
+  // start, which is the number this field was filled from in the first place.
+  const changedWeight = typedWeight !== null && typedWeight !== suggested ? typedWeight : null;
+
+  const log = (action: "complete_set" | "skip_set") =>
+    state.logSet(action, stepId, set.index, {
+      repetitions: numberOrNull(repetitions),
+      weightKg: changedWeight,
+      effortRpe: numberOrNull(rpe),
+    });
+
+  return (
+    <div className="set-logger">
+      <div className="set-fields">
+        {set.repetitions != null && (
+          <label>
+            <span>Reps</span>
+            <input inputMode="numeric" value={repetitions} onChange={(e) => setRepetitions(e.target.value)} />
+          </label>
+        )}
+        {suggested != null && (
+          <label>
+            <span>Vikt (kg)</span>
+            <input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
+          </label>
+        )}
+        <label>
+          <span>RPE</span>
+          <input inputMode="decimal" value={rpe} onChange={(e) => setRpe(e.target.value)} placeholder="–" />
+        </label>
+      </div>
+      <div className="set-buttons">
+        <button className="primary-button" onClick={() => log("complete_set")}>Klart</button>
+        <button className="quiet-button" onClick={() => log("skip_set")}>Hoppa över</button>
+      </div>
+    </div>
+  );
+}
+
+function setMark(logged: LoggedSet | undefined): string | null {
+  if (!logged) return null;
+  return logged.status === "skipped" ? "Överhoppat" : "Klart";
+}
+
+function Moment({ moment, here, state }: {
+  moment: TrainingMoment;
+  here: boolean;
+  state: ReturnType<typeof useRun>;
+}) {
   // Where the run stands opens itself. Everything else stays folded, so the
   // pass reads as a list until you ask a line to say more.
   const [open, setOpen] = useState(here);
   const sets = moment.prescribed_sets;
   const rest = sharedRest(sets);
+  const currentSet = here ? sets.find((set) => set.index === state.run?.current_set_index) : undefined;
 
   return (
     <div className={here ? "moment here" : "moment"}>
@@ -44,13 +119,42 @@ function Moment({ moment, here }: { moment: TrainingMoment; here: boolean }) {
               an empty one means the pass carries only the moment's own numbers. */}
           {sets.length > 0 && (
             <ol className="set-list">
-              {sets.map((set) => (
-                <li key={set.index}>
-                  <span className="set-index">{set.index}</span>
-                  <span className="set-line">{setLine(set, rest === null)}</span>
-                </li>
-              ))}
+              {sets.map((set) => {
+                // Only what this client logged is marked. The run carries counts,
+                // not a per-set list, so a run picked up from the phone shows its
+                // earlier sets unmarked rather than claimed.
+                const mark = setMark(state.logged[setKey(moment.id, set.index)]);
+                const current = here && state.run?.current_set_index === set.index;
+                return (
+                  <li key={set.index} className={current ? "current" : undefined}>
+                    <span className="set-index">{set.index}</span>
+                    <span className="set-line">{setLine(set, rest === null)}</span>
+                    {mark && <span className="set-mark">{mark}</span>}
+                  </li>
+                );
+              })}
             </ol>
+          )}
+
+          {here && state.can("complete_set") && currentSet && (
+            // Keyed on the set, so advancing to the next one starts from its
+            // prescription rather than from the last one's typing.
+            <SetLogger
+              key={setKey(moment.id, currentSet.index)}
+              set={currentSet}
+              stepId={moment.id}
+              state={state}
+            />
+          )}
+
+          {/* A moment with no prescribed sets — a warm-up row, a stretch — still
+              has to be finishable, or the run stops at it with nothing to press. */}
+          {here && !currentSet && state.can("complete_step") && (
+            <div className="set-buttons">
+              <button className="primary-button" onClick={() => state.act("complete_step", { step_id: moment.id })}>
+                Klart
+              </button>
+            </div>
           )}
           {rest !== null && <p className="set-rest">{restLabel(rest)} mellan seten</p>}
           {moment.notes && <p className="moment-notes">{moment.notes}</p>}
@@ -161,7 +265,7 @@ function Session({ session, activeRun }: { session: TrainingSession; activeRun: 
         <section className="card block-card" key={block.position}>
           <h2>{phaseLabel(block.moments[0].phase)}</h2>
           {block.moments.map((moment) => (
-            <Moment key={moment.id} moment={moment} here={moment.id === here} />
+            <Moment key={moment.id} moment={moment} here={moment.id === here} state={state} />
           ))}
         </section>
       ))}

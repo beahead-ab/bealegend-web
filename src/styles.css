@@ -319,6 +319,27 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .run-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
 .quiet-button { font-size: 13px; color: var(--muted); }
 .quiet-button:hover { color: var(--red); }
+.set-list li.current { font-weight: 500; }
+.set-list li.current .set-index { color: var(--blue); }
+.set-mark { margin-left: auto; flex: none; font-size: 12px; color: var(--muted); }
+
+.set-logger { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.set-fields { display: flex; flex-wrap: wrap; gap: 10px; }
+.set-fields label { display: flex; flex-direction: column; gap: 4px; min-width: 84px; flex: 1 1 84px; }
+.set-fields span { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.set-fields input {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.set-fields input:focus { outline: none; border-color: var(--blue); }
+.set-buttons { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+
 /* Its own row, below the line — never beside the button that saves the pass. */
 .run-discard { width: 100%; padding-top: 10px; border-top: 1px solid var(--line); }
 .run-bar.discarding { border-color: var(--red); }

@@ -48,6 +48,18 @@ function startRun(sessionId: string): Promise<TrainingRun> {
   });
 }
 
+/** What this client logged during this session, for marking the sets it knows
+ *  about. The run itself carries only counts, never a per-set list. */
+export type LoggedSet = {
+  status: "completed" | "skipped";
+  repetitions: number | null;
+  weightKg: number | null;
+};
+
+export function setKey(stepId: string, setIndex: number): string {
+  return `${stepId}:${setIndex}`;
+}
+
 export type RunState = {
   run: TrainingRun | null;
   /** The clock as it should read now — the server's number, carried forward
@@ -59,6 +71,13 @@ export type RunState = {
   can: (action: RunAction) => boolean;
   start: () => Promise<void>;
   act: (action: RunAction, extra?: Partial<QueuedCommand>) => void;
+  logged: Record<string, LoggedSet>;
+  logSet: (
+    action: "complete_set" | "skip_set",
+    stepId: string,
+    setIndex: number,
+    values?: { repetitions?: number | null; weightKg?: number | null; effortRpe?: number | null },
+  ) => void;
 };
 
 export function useRun(session: TrainingSession | null, initial: TrainingRun | null): RunState {
@@ -68,6 +87,7 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
   const [starting, setStarting] = useState(false);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState("");
+  const [logged, setLogged] = useState<Record<string, LoggedSet>>({});
 
   const runRef = useRef(run);
   runRef.current = run;
@@ -172,7 +192,35 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     [run],
   );
 
-  return { run, activeSeconds, starting, pending, error, can, start, act };
+  const logSet = useCallback<RunState["logSet"]>(
+    (action, stepId, setIndex, values = {}) => {
+      setLogged((previous) => ({
+        ...previous,
+        [setKey(stepId, setIndex)]: {
+          status: action === "skip_set" ? "skipped" : "completed",
+          repetitions: values.repetitions ?? null,
+          weightKg: values.weightKg ?? null,
+        },
+      }));
+      act(action, {
+        // Always named, never left to default to "whatever is current". A
+        // command that waited out a tunnel would otherwise land against the set
+        // the run had moved on to, and log the wrong one.
+        step_id: stepId,
+        set_index: setIndex,
+        ...(values.repetitions != null ? { repetitions: values.repetitions } : {}),
+        // Sent only when the user changed it. Left out, the server records the
+        // weight it froze when the run started — which is the number the user
+        // actually saw, and safer than echoing a suggestion that may have been
+        // recomputed since.
+        ...(values.weightKg != null ? { weight_kg: values.weightKg } : {}),
+        ...(values.effortRpe != null ? { effort_rpe: values.effortRpe } : {}),
+      });
+    },
+    [act],
+  );
+
+  return { run, activeSeconds, starting, pending, error, can, start, act, logged, logSet };
 }
 
 /** The clock, as a pass is read: 48:12 rather than 2892 seconds. */
