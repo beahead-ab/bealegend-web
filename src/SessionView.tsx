@@ -23,6 +23,15 @@ import { clockText, setKey, useRun, type LoggedSet } from "./useRun";
 
 type Conversation = ReturnType<typeof useConversation>;
 
+/** Where back actually goes. Promising "Idag" from a pass reached by paging
+ *  back a week was the surface saying one thing and doing another. */
+function dayLabel(date: Date): string {
+  const today = new Date();
+  return date.toDateString() === today.toDateString()
+    ? "Idag"
+    : date.toLocaleDateString("sv-SE", { weekday: "long" });
+}
+
 function numberOrNull(text: string): number | null {
   const value = Number(text.replace(",", "."));
   return text.trim() !== "" && Number.isFinite(value) ? value : null;
@@ -309,7 +318,7 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
     <div className="app-shell">
       <header className="thread-header">
         <button className="thread-back" onClick={() => (chosen && !only ? setChosen(null) : onClose())}>
-          ‹ {chosen && !only ? "Dagens pass" : "Idag"}
+          ‹ {chosen && !only ? "Dagens pass" : dayLabel(date)}
         </button>
       </header>
 
