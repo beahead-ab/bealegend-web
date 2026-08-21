@@ -1,0 +1,113 @@
+/*
+ * One chrome, per §8 of the navigation concept: ink-black, cream canvas, blue
+ * reserved for data and primary buttons. The variant switcher the native app
+ * carried is not repeated here — it is being removed there, and starting a new
+ * client with the thing we decided to delete would be a strange way to begin.
+ */
+:root {
+  --canvas: #faf9f6;
+  --surface: #ffffff;
+  --ink: #16161a;
+  --muted: #6b6b66;
+  --line: #e4e2dc;
+  --blue: #2f68ff;
+  --red: #c0392b;
+  --radius: 14px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* The date owns the left edge (§2); the mark is not in the header at all. */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0 10px;
+}
+
+.app-header .kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.app-header h1 { margin: 1px 0 0; font-size: 20px; letter-spacing: -0.01em; }
+
+.header-actions { margin-left: auto; display: flex; gap: 4px; }
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.icon-button:hover { color: var(--ink); background: var(--surface); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--canvas);
+  font-weight: 500;
+}
+
+.primary-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.error-message {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e9b5af;
+  border-radius: 10px;
+  background: #fff2f0;
+  color: #8d271f;
+  font-size: 13px;
+}
+
+.centered {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+}
+
+.muted { color: var(--muted); }
