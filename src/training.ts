@@ -93,6 +93,10 @@ export type TrainingHome = {
   schema_version: string;
   today_sessions: TrainingSession[];
   extra_sessions: TrainingSession[];
+  /** The server allows one run at a time per user, so this is what stops the
+   *  surface offering a start it already knows would be refused. */
+  active_run: TrainingRun | null;
+  active_session: TrainingSession | null;
 };
 
 export function fetchTrainingHome(date: Date): Promise<TrainingHome> {
@@ -211,6 +215,17 @@ export function momentPrescription(moment: TrainingMoment): string {
  * shown as a suggestion to confirm rather than a number to look up — which is
  * also why it is spelled out here and not left to the input field alone.
  */
+/**
+ * Whether finishing here means finishing early. The server marks such a run
+ * `completed_partial` — saved and counted, but honest that the pass was not
+ * run to its end, which is a different thing from cancelling it.
+ */
+export function isEarlyFinish(session: TrainingSession, run: TrainingRun): boolean {
+  if (run.current_step_id === null) return false;
+  const last = session.moments[session.moments.length - 1];
+  return last !== undefined && last.id !== run.current_step_id;
+}
+
 export function setLine(set: PrescribedSet, showRest = true): string {
   const parts: string[] = [];
   const each = measure(set.repetitions, set.duration_seconds, set.distance_meters);

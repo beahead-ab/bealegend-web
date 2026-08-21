@@ -330,6 +330,59 @@ describe("createRunQueue", () => {
     expect(queue.pending()).toHaveLength(0);
   });
 
+  /** A burst of set logging must not buy a conflict per command: the version
+   *  our own accepted command produced is one we genuinely believe. */
+  it("carries its own accepted version forward to the command behind it", async () => {
+    const versions: number[] = [];
+    let version = 5;
+    const queue = createRunQueue({
+      store: memoryStore(),
+      ordinalOf,
+      send: async (c) => {
+        versions.push(c.expected_version);
+        version += 1;
+        return run({ state_version: version });
+      },
+    });
+
+    queue.enqueue({ ...enqueued, set_index: 1 });
+    queue.enqueue({ ...enqueued, set_index: 2 });
+    queue.enqueue({ ...enqueued, set_index: 3 });
+    await queue.flush();
+
+    expect(versions).toEqual([5, 6, 7]);
+  });
+
+  /**
+   * Only its own. A version learned from the other device may be the very
+   * change that invalidates what is queued — carrying it forward would land a
+   * command written before that change as though it were written after.
+   */
+  it("does not carry a version forward across a conflict", async () => {
+    const versions: number[] = [];
+    let conflicted = false;
+    const queue = createRunQueue({
+      store: memoryStore(),
+      ordinalOf,
+      send: async (c) => {
+        versions.push(c.expected_version);
+        if (!conflicted && c.set_index === 2) {
+          conflicted = true;
+          throw conflict(run({ state_version: 20 }));
+        }
+        return run({ state_version: c.expected_version + 1 });
+      },
+    });
+
+    queue.enqueue({ ...enqueued, set_index: 2, step_id: "step-b" });
+    queue.enqueue({ ...enqueued, set_index: 3, step_id: "step-b" });
+    await queue.flush();
+
+    // 5 rejected, rebased to 20, accepted at 21 — and the next command is
+    // stamped from that acceptance rather than from the conflict.
+    expect(versions).toEqual([5, 20, 21]);
+  });
+
   it("hands every accepted run back as the new truth", async () => {
     const seen: number[] = [];
     const queue = createRunQueue({

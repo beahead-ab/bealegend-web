@@ -6,25 +6,31 @@ import {
   canRun,
   estimateLabel,
   fetchTrainingHome,
+  isEarlyFinish,
   modeReason,
   momentPrescription,
   phaseLabel,
   restLabel,
   setLine,
   sharedRest,
+  type TrainingHome,
   type TrainingMoment,
+  type TrainingRun,
   type TrainingSession,
 } from "./training";
+import { clockText, useRun } from "./useRun";
 
 type Conversation = ReturnType<typeof useConversation>;
 
-function Moment({ moment }: { moment: TrainingMoment }) {
-  const [open, setOpen] = useState(false);
+function Moment({ moment, here }: { moment: TrainingMoment; here: boolean }) {
+  // Where the run stands opens itself. Everything else stays folded, so the
+  // pass reads as a list until you ask a line to say more.
+  const [open, setOpen] = useState(here);
   const sets = moment.prescribed_sets;
   const rest = sharedRest(sets);
 
   return (
-    <div className="moment">
+    <div className={here ? "moment here" : "moment"}>
       <button className="moment-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="moment-name">{moment.name}</span>
         <span className="moment-prescription">{momentPrescription(moment)}</span>
@@ -54,8 +60,81 @@ function Moment({ moment }: { moment: TrainingMoment }) {
   );
 }
 
-function Session({ session }: { session: TrainingSession }) {
+/**
+ * The run's controls, drawn from `allowed_actions` alone. A button whose rule
+ * lived here would disagree with the server the first time the rule changed on
+ * one side only — and the server is the side that decides.
+ */
+function RunBar({ session, state }: { session: TrainingSession; state: ReturnType<typeof useRun> }) {
+  const { run } = state;
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+  if (!run) {
+    return (
+      <div className="run-bar">
+        <button className="primary-button" onClick={() => void state.start()} disabled={state.starting}>
+          {state.starting ? "Startar …" : "Starta passet"}
+        </button>
+      </div>
+    );
+  }
+
+  const early = isEarlyFinish(session, run);
+
+  /**
+   * Cancelling is not a quieter finish. The server discards the run and deletes
+   * every set already recorded against it, so it asks first — and it never
+   * stands next to the button that saves the pass, where one mis-tap would be
+   * the difference between keeping an hour's work and losing it.
+   */
+  if (confirmingDiscard) {
+    return (
+      <div className="run-bar discarding">
+        <p className="run-question">Kasta passet? Allt du loggat tas bort.</p>
+        <div className="run-actions">
+          <button className="pill" onClick={() => setConfirmingDiscard(false)}>Behåll</button>
+          <button className="danger-button" onClick={() => { setConfirmingDiscard(false); state.act("cancel"); }}>
+            Kasta
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="run-bar">
+      <div className="run-clock">
+        <strong>{clockText(state.activeSeconds)}</strong>
+        {run.status === "paused" && <span className="run-status">Pausat</span>}
+        {state.pending > 0 && (
+          // Said plainly rather than hidden: the pass is being run, the
+          // commands are kept, and they will land. Silence here would read as
+          // lost work.
+          <span className="run-status">{state.pending} väntar på nätet</span>
+        )}
+      </div>
+      <div className="run-actions">
+        {state.can("pause") && <button className="pill" onClick={() => state.act("pause")}>Pausa</button>}
+        {state.can("resume") && <button className="pill" onClick={() => state.act("resume")}>Återuppta</button>}
+        {state.can("complete") && (
+          <button className="primary-button" onClick={() => state.act("complete", { partial: early })}>
+            {early ? "Avsluta i förtid" : "Avsluta passet"}
+          </button>
+        )}
+      </div>
+      {state.can("cancel") && (
+        <div className="run-discard">
+          <button className="quiet-button" onClick={() => setConfirmingDiscard(true)}>Kasta passet</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Session({ session, activeRun }: { session: TrainingSession; activeRun: TrainingRun | null }) {
   const estimate = estimateLabel(session.estimated_seconds);
+  const state = useRun(session, activeRun);
+  const here = state.run?.current_step_id ?? null;
 
   return (
     <>
@@ -75,10 +154,15 @@ function Session({ session }: { session: TrainingSession }) {
           to move to the phone should learn it while there is still time to. */}
       {!canRun(session) && <p className="session-notice">{modeReason(session)}</p>}
 
+      {state.error && <p className="error-message">{state.error}</p>}
+      {canRun(session) && <RunBar session={session} state={state} />}
+
       {blocks(session).map((block) => (
         <section className="card block-card" key={block.position}>
           <h2>{phaseLabel(block.moments[0].phase)}</h2>
-          {block.moments.map((moment) => <Moment key={moment.id} moment={moment} />)}
+          {block.moments.map((moment) => (
+            <Moment key={moment.id} moment={moment} here={moment.id === here} />
+          ))}
         </section>
       ))}
     </>
@@ -96,7 +180,7 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
   onClose: () => void;
   onOpenThread: () => void;
 }) {
-  const [sessions, setSessions] = useState<TrainingSession[] | null>(null);
+  const [home, setHome] = useState<TrainingHome | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -104,13 +188,18 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
     let cancelled = false;
     setError("");
     fetchTrainingHome(date)
-      .then((home) => !cancelled && setSessions(home.today_sessions))
+      .then((result) => !cancelled && setHome(result))
       .catch(() => !cancelled && setError("Passet kunde inte hämtas."));
     return () => { cancelled = true; };
   }, [date]);
 
-  const only = sessions?.length === 1 ? sessions[0] : null;
+  const sessions = home?.today_sessions ?? null;
+  // A run already going wins over the day's list: the server allows one at a
+  // time, so anything else on screen would offer a start it would refuse.
+  const running = home?.active_run && home.active_session ? home.active_session : null;
+  const only = running ?? (sessions?.length === 1 ? sessions[0] : null);
   const open = only ?? sessions?.find((session) => session.id === chosen) ?? null;
+  const activeRun = home?.active_run && open && home.active_run.session_id === open.id ? home.active_run : null;
 
   return (
     <div className="app-shell">
@@ -129,7 +218,7 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
         </div>
       )}
 
-      {open ? <Session session={open} /> : (
+      {open ? <Session key={open.id} session={open} activeRun={activeRun} /> : (
         sessions && sessions.length > 1 && (
           <>
             <div className="hero">
