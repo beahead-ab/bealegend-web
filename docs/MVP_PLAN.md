@@ -7,6 +7,11 @@ inte kräver backendändringar och att admin redan bevisat hela webbstacken.
 **Inte i MVP:** passkörning, historik/analys, Biblioteket, liveutmaningar,
 offline/service worker. De är nästa våg, inte den här.
 
+**Passkörningen byggdes ändå, 2026-08-21**, direkt efter MVP:n och före
+Android-beslutet: den är den största delen som ändå ska göras två gånger, och
+kommandokön som skrevs för webben är den som sedan portas till Swift. §2.1 bär
+besluten, ärendena #14–#18 detaljerna.
+
 ---
 
 ## §1 Principer
@@ -44,8 +49,31 @@ offline/service worker. De är nästa våg, inte den här.
 
 Ärendena bär detaljerna; det här dokumentet bär besluten.
 
+## §2.1 Passkörningen (#14–#18)
+
+Byggd i den ordningen, med kön före all UI:
+
+| Steg | Ärende | Vad som avgjordes |
+|---|---|---|
+| 1 | #14 Passunderlaget | Läsläge. Serverns ordning på momenten rörs aldrig — den bär användarens egna justeringar för dagen. |
+| 2 | #15 Kommandokön | Ordning och ett i taget. Ingen UI ovanpå förrän den hade tester. |
+| 3 | #16 Körningen | Knapparna ritas ur `allowed_actions`, aldrig ur en regel på klientsidan. |
+| 4 | #17 Loggningen | `step_id` och `set_index` namnges alltid; vikten skickas bara när den ändrats. |
+| 5 | #18 Andra enheten | `EventSource` mot körningens ström; äldre avläsningar ignoreras. |
+
+**Bara `sequential_sets`.** `continuous_tracking`, `intervals` och `card_deck`
+bygger på sensorer en webbläsare inte har. De ritas som ej körbara, med skälet
+utskrivet före passet — inte vid en startknapp som inte fungerar.
+
+**Backend behövde ingen ändring.** `source_device` accepterade redan `"web"`,
+och idempotenskollen på `command_id` sker före versionskollen, vilket är det
+som gör "skicka om vid fel" till en trygg regel snarare än en risk.
+
 ## §3 Tekniska hållpunkter som inte får tappas
 
+- **Körningens ström är en ren GET**, till skillnad från chattens. Där går
+  `EventSource` att använda, och gör det: samma ursprung ger förstapartskaka,
+  och serverns filter lyfter den till headern. Blanda inte ihop de två.
 - **`POST /api/v1/chat/stream` är en ström över POST.** `EventSource` klarar
   inte POST — tolkningen görs med `fetch` + `ReadableStream`, rad för rad:
   `data: {choices|actions}` och `data: [DONE]`. Samma tolkning som iOS gör med
@@ -54,9 +82,9 @@ offline/service worker. De är nästa våg, inte den här.
   `Intl.DateTimeFormat().resolvedOptions().timeZone`.
 - **Synkkontraktet är klientdisciplin** (läst och verifierat i backend):
   UUID per kommando som överlever omsändning, `expected_version` alltid satt,
-  409-svarets `current_run` adopteras direkt. MVP kör inga pass, men
-  API-klienten byggs med detta från dag ett så att passkörningen inte behöver
-  en ny klient.
+  409-svarets `current_run` adopteras direkt. API-klienten byggdes med detta
+  från dag ett, före första passet — och när passkörningen kom behövde den
+  ingen ny klient. `ApiError` bär redan felkroppen just därför.
 - **Dikteringen** återanvänder admins `useDictation`-mönster (Web Speech,
   svenska, append i stället för ersätt). Kopieras in; ett delat paket är värt
   det först när tre klienter drar åt samma kod.
