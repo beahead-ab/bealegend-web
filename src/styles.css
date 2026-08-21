@@ -194,3 +194,157 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .progress { height: 2px; margin-bottom: 12px; border-radius: 999px; background: rgba(47, 104, 255, 0.16); }
 .progress span { display: block; height: 100%; border-radius: 999px; background: var(--blue); }
+
+/* The floor sits on every surface, so the surface reserves room for it. */
+.app-shell { padding-bottom: 92px; }
+
+.floor {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--canvas) 62%, transparent);
+}
+
+.floor-composer, .floor-ongoing {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 10px 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.floor-composer textarea {
+  flex: 1;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 7px 0;
+  max-height: 148px;
+}
+
+.floor-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--canvas);
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+.floor-send:disabled { opacity: 0.3; }
+
+.floor-spinner {
+  width: 14px; height: 14px; margin: 8px;
+  border: 2px solid var(--line);
+  border-top-color: var(--muted);
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+  flex: 0 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .floor-spinner { animation: none; } }
+
+.floor-ongoing { align-items: center; text-align: left; cursor: pointer; }
+.floor-line {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--muted);
+}
+/* Status, which §8 counts as data — the one blue left on the floor. */
+.floor-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--blue); flex: 0 0 auto; }
+
+.thread { display: flex; flex-direction: column; height: 100%; max-width: 760px; margin: 0 auto; padding: 0 20px 92px; }
+
+.thread-header { display: flex; align-items: center; padding: 12px 0 6px; }
+.thread-back { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.thread-done { margin-left: auto; font-size: 13px; font-weight: 600; }
+.thread-done:disabled { color: var(--muted); cursor: default; }
+
+.thread-scroll { flex: 1; overflow-y: auto; }
+
+.thread-divider {
+  margin: 18px 0 10px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.thread-earlier {
+  display: block;
+  margin: 8px auto 0;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.bubble-row { display: flex; margin-bottom: 12px; gap: 10px; }
+.bubble-row.user { justify-content: flex-end; }
+
+/* Quiet, not iMessage blue: what a person said is not data. */
+.bubble {
+  margin: 0;
+  max-width: 78%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.coach-avatar { width: 22px; height: 22px; object-fit: contain; margin-top: 3px; flex: 0 0 auto; }
+.coach-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 82%; }
+.coach-body p { margin: 0; font-size: 14px; white-space: pre-wrap; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.chip.done { color: #1f7a4d; border-color: #bfe3ce; background: #f2fbf6; }
+
+.floor-mic, .floor-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+.floor-stop { background: var(--red); color: #fff; }
+.floor-note {
+  max-width: 720px;
+  margin: 6px auto 0;
+  padding: 0 16px;
+  font-size: 11px;
+  color: var(--red);
+}
