@@ -196,6 +196,14 @@ export function createRunQueue(options: {
   const send = options.send ?? sendCommand;
   let queue = options.store.read();
   let flushing: Promise<FlushOutcome> | null = null;
+  /**
+   * The newest version this queue has been handed by a send of its own. Only
+   * its own: a version learned from somewhere else (the other device's stream)
+   * may be a change that invalidates what is queued, and that is exactly what
+   * the conflict check exists to catch. Skipping it there would let a command
+   * written before that change land as though it were written after.
+   */
+  let ownVersion: number | null = null;
 
   const persist = () => options.store.write(queue);
 
@@ -205,7 +213,13 @@ export function createRunQueue(options: {
 
   async function drain(): Promise<FlushOutcome> {
     while (queue.length > 0) {
-      const command = queue[0];
+      // A command queued behind one of ours was written believing an older
+      // version, and our own accepted command is what moved it. Sending the
+      // stale number would buy a guaranteed conflict and a second round trip
+      // for every command in a burst.
+      const command = ownVersion !== null && queue[0].expected_version < ownVersion
+        ? { ...queue[0], expected_version: ownVersion }
+        : queue[0];
       let outcome: SendOutcome;
       try {
         outcome = { kind: "sent", run: await send(command) };
@@ -215,6 +229,7 @@ export function createRunQueue(options: {
 
       if (outcome.kind === "sent") {
         queue = queue.slice(1);
+        ownVersion = outcome.run.state_version;
         persist();
         options.onRun?.(outcome.run);
         continue;
@@ -232,6 +247,7 @@ export function createRunQueue(options: {
           return { kind: "drained" };
         }
         const resolution = resolveConflict(command, outcome.run, options.ordinalOf);
+        ownVersion = null;
         if (resolution.kind === "drop") {
           queue = queue.slice(1);
           drop(command, resolution.reason);
