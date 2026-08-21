@@ -1,0 +1,30 @@
+:80 {
+  handle /api/* {
+    reverse_proxy {$BAL_API_URL:http://api:8080}
+  }
+
+  # Vite hashes every filename under /assets/*, so those are safe to cache
+  # forever — but index.html names the current hash, and if *it* is cached the
+  # browser keeps loading a build from before whatever shipped since, however
+  # many times the server is redeployed.
+  handle /assets/* {
+    root * /srv
+    encode zstd gzip
+    header Cache-Control "public, max-age=31536000, immutable"
+    file_server
+  }
+
+  handle {
+    root * /srv
+    encode zstd gzip
+    try_files {path} /index.html
+    header Cache-Control "no-cache, no-store, must-revalidate"
+    file_server
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    Permissions-Policy "camera=(), geolocation=()"
+  }
+}
