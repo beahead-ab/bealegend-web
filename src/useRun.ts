@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { newCommandId, request } from "./api";
+import { API_URL, newCommandId, request } from "./api";
 import {
   browserStore,
   createRunQueue,
@@ -96,7 +96,7 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
   const device = useMemo(() => deviceId(), []);
 
   const adopt = useCallback((next: TrainingRun) => {
-    setRun(next);
+    setRun((current) => newerOf(current, next));
     setAnsweredAt(Date.now());
     setNow(Date.now());
   }, []);
@@ -142,6 +142,33 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [run?.status]);
+
+  /**
+   * The other device. A pass started on the phone shows here without anyone
+   * pressing refresh — the run's own stream, which is a plain GET, so unlike
+   * the chat stream it can be an EventSource. The session is a first-party
+   * cookie (the web is served from the same origin as the API), and the
+   * server's filter lifts it into the header, so no token is handled here.
+   *
+   * A version older than the one held is ignored inside [adopt]; a command
+   * already queued against an older version is not — it goes to the server and
+   * is answered with a conflict, which is the one place that decision belongs.
+   */
+  const runId = run && !isFinished(run) ? run.id : null;
+  useEffect(() => {
+    if (!runId) return;
+    const source = new EventSource(`${API_URL}/api/v1/training/runs/${runId}/stream`, {
+      withCredentials: true,
+    });
+    source.addEventListener("run_updated", (event) => {
+      try {
+        adopt(JSON.parse((event as MessageEvent).data) as TrainingRun);
+      } catch {
+        // A frame that is not a run is not worth breaking the pass over.
+      }
+    });
+    return () => source.close();
+  }, [runId, adopt]);
 
   const activeSeconds = run
     ? run.status === "active"
@@ -221,6 +248,16 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
   );
 
   return { run, activeSeconds, starting, pending, error, can, start, act, logged, logSet };
+}
+
+/**
+ * Which of two readings of the same run to keep. The server's version only ever
+ * climbs, so a lower one arriving is a message that overtook a newer one on the
+ * way here — and applying it would rewind the surface to a state already left.
+ * Only the stream can deliver these out of order; the queue sends one at a time.
+ */
+export function newerOf(current: TrainingRun | null, next: TrainingRun): TrainingRun {
+  return current && next.state_version < current.state_version ? current : next;
 }
 
 /** The clock, as a pass is read: 48:12 rather than 2892 seconds. */
