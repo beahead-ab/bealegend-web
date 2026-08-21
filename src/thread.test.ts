@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dividerLabel, splitProse, threadDays, type ThreadMessage } from "./thread";
+import { dividerLabel, splitProse, threadDays, type ThreadMessage, opensGap } from "./thread";
 
 const at = (iso: string): ThreadMessage => ({
   id: iso,
@@ -94,5 +94,36 @@ describe("splitProse", () => {
 
     expect(prose.text).toBe("Hm.");
     expect(prose.meal).toBeNull();
+  });
+});
+
+describe("opensGap", () => {
+  const at = (minutes: number): ThreadMessage => ({
+    id: `m${minutes}`,
+    role: "user",
+    text: "",
+    actions: [],
+    streaming: false,
+    failed: false,
+    createdAt: new Date(2026, 7, 21, 12, minutes),
+  });
+
+  /**
+   * Twenty minutes, not every role change. Roles alternate constantly in a real
+   * exchange, so stamping each one would put a time on nearly every bubble and
+   * turn the thread into a log — the thing the day dividers exist to avoid.
+   */
+  it("marks a pause long enough to need placing", () => {
+    expect(opensGap(at(25), at(0))).toBe(true);
+    expect(opensGap(at(20), at(0))).toBe(true);
+  });
+
+  it("leaves a continuous exchange unmarked", () => {
+    expect(opensGap(at(3), at(0))).toBe(false);
+    expect(opensGap(at(19), at(0))).toBe(false);
+  });
+
+  it("never marks the first message of a day", () => {
+    expect(opensGap(at(0), undefined)).toBe(false);
   });
 });

@@ -54,6 +54,24 @@ export function threadDays(messages: ThreadMessage[], now = new Date()): ThreadD
   return days;
 }
 
+/**
+ * A gap long enough that "vad sa du innan lunch?" needs an answer. Twenty
+ * minutes rather than every role change: roles alternate constantly in a real
+ * exchange, so stamping each one would put a time on nearly every bubble and
+ * turn the thread into a log — the one thing the divider design avoids.
+ */
+const GAP_MS = 20 * 60 * 1000;
+
+export function timeLabel(date: Date): string {
+  return time(date);
+}
+
+/** Whether this message opens a new stretch of talking within its day. */
+export function opensGap(message: ThreadMessage, previous: ThreadMessage | undefined): boolean {
+  if (!previous) return false;
+  return message.createdAt.getTime() - previous.createdAt.getTime() >= GAP_MS;
+}
+
 export type MealReceipt = { description: string; calories: number };
 
 export type Prose = { text: string; meal: MealReceipt | null };

@@ -15,6 +15,7 @@ import {
 import { fetchOverview, heroSentence, type DailyOverview } from "./daily";
 import { fetchTrainingHome, isFinished, type TrainingRun } from "./training";
 import { readRoute, routeSearch, sameRoute, type Route, type Surface } from "./route";
+import { BackIcon, ChevronIcon } from "./icons";
 import {
   addDays,
   coveringRange,
@@ -61,10 +62,20 @@ function isToday(date: Date): boolean {
   return date.toDateString() === new Date().toDateString();
 }
 
+/** The same voice on every day, not only on this one. Saying "onsdag" in both
+ *  the kicker and the heading made the heading add nothing — and "Idag." was
+ *  then the one line in the surface with a voice, which vanished the moment you
+ *  paged away from today. */
+export function headingFor(date: Date, now = new Date()): string {
+  if (date.toDateString() === now.toDateString()) return "Idag.";
+  if (date.toDateString() === addDays(now, -1).toDateString()) return "Igår.";
+  if (date.toDateString() === addDays(now, 1).toDateString()) return "I morgon.";
+  return `${date.toLocaleDateString(SWEDISH, { day: "numeric", month: "long" })}.`;
+}
+
 /**
- * §2: the date owns the left edge. "Idag." only when it is actually today —
- * otherwise the weekday and a way back, so today is always default and always
- * one click away.
+ * §2: the date owns the left edge, and today is always default and always one
+ * click away.
  */
 function DayHeader({
   date,
@@ -73,6 +84,7 @@ function DayHeader({
   onSignOut,
   name,
   runActive,
+  atFuture,
 }: {
   date: Date;
   move: (days: number) => void;
@@ -80,19 +92,18 @@ function DayHeader({
   onSignOut: () => void;
   name: string | null | undefined;
   runActive: boolean;
+  atFuture: boolean;
 }) {
   const today = isToday(date);
   return (
     <header className="app-header">
       <div>
-        <div className="kicker">
-          {date.toLocaleDateString(SWEDISH, { weekday: "long", day: "numeric", month: "long" })}
-        </div>
-        <h1>{today ? "Idag." : date.toLocaleDateString(SWEDISH, { weekday: "long" })}</h1>
+        <div className="kicker">{date.toLocaleDateString(SWEDISH, { weekday: "long" })}</div>
+        <h1>{headingFor(date)}</h1>
       </div>
 
-      <button className="icon-button" onClick={() => move(-1)} aria-label="Föregående dag">‹</button>
-      <button className="icon-button" onClick={() => move(1)} aria-label="Nästa dag">›</button>
+      <button className="icon-button" onClick={() => move(-1)} aria-label="Föregående dag"><BackIcon size={16} /></button>
+      <button className="icon-button" onClick={() => move(1)} aria-label="Nästa dag" disabled={atFuture}><ChevronIcon size={16} /></button>
       {!today && <button className="pill" onClick={goToToday}>Till idag</button>}
 
       <div className="header-actions">
@@ -237,12 +248,31 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
     return () => { cancelled = true; };
   }, [config, date]);
 
+  // A client that often has a keyboard should be usable with one. Esc closes
+  // whichever surface is open, which is what every other app on the machine does.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Never while typing: the arrows belong to the caret then.
+      if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+      if (event.key === "ArrowLeft") setDate(addDays(date, -1));
+      if (event.key === "ArrowRight" && !atFuture) setDate(addDays(date, 1));
+      if (event.key === "Escape" && surface !== "today") setSurface("today");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const configured = config ? sections(config.widgets) : [];
   // The built-in surface always carries Träning, so a day with no configuration
   // still has a session to promise. Claiming one the surface does not show
   // would make the sentence a small lie.
   const showsTraining = configured.length === 0 || configured.some((section) => section.group === "Träning");
   const runningLabel = activeRun && !isFinished(activeRun) ? "Pågår" : "";
+  // Tomorrow is as far as the day surface can honestly go: a diary has nothing
+  // to show for a day that has not happened, and every step there costs three
+  // requests to find that out.
+  const atFuture = date.toDateString() === addDays(new Date(), 1).toDateString();
 
   if (surface === "thread") {
     return <CoachThread conversation={conversation} onClose={() => setSurface("today")} />;
@@ -268,6 +298,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         onSignOut={onSignOut}
         name={overview?.user.first_name}
         runActive={!!activeRun && !isFinished(activeRun)}
+        atFuture={atFuture}
       />
 
       {error && (
