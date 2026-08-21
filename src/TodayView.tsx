@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
 import { SessionView } from "./SessionView";
@@ -14,6 +14,7 @@ import {
 } from "./dashboard";
 import { fetchOverview, heroSentence, type DailyOverview } from "./daily";
 import { fetchTrainingHome, isFinished, type TrainingRun } from "./training";
+import { readRoute, routeSearch, sameRoute, type Route, type Surface } from "./route";
 import {
   addDays,
   coveringRange,
@@ -26,27 +27,34 @@ import { ItemList, LineChart, MetricRow, Ring } from "./widgets";
 
 const SWEDISH = "sv-SE";
 
-type Surface = "today" | "session" | "thread";
+/**
+ * Where the tab is, kept in the address bar. sessionStorage remembered the
+ * surface but not the day, so a reload while reading last Wednesday's pass
+ * landed in the pass view showing today — half a memory. The URL carries both,
+ * which also makes a reload, a shared link and the browser's back button work
+ * without any code of ours holding the state.
+ */
+function useRoute(): [Route, (next: Route) => void] {
+  const [route, setRoute] = useState(() => readRoute(window.location.search));
 
-const SURFACE_KEY = "bal.surface";
+  useEffect(() => {
+    const onPop = () => setRoute(readRoute(window.location.search));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
-function rememberedSurface(): Surface {
-  try {
-    const stored = window.sessionStorage.getItem(SURFACE_KEY);
-    // The thread is not remembered: it is a conversation you left, and landing
-    // back in it would hide the day you reloaded to see.
-    return stored === "session" ? "session" : "today";
-  } catch {
-    return "today";
-  }
-}
+  const go = useCallback((next: Route) => {
+    // Read from the address bar rather than from state: it is the source of
+    // truth here, and pushing history from inside a state updater would fire
+    // twice under StrictMode and leave a duplicate entry to click back through.
+    if (sameRoute(readRoute(window.location.search), next)) return;
+    // pushState, so back returns to where they were rather than leaving the
+    // app — the one thing the browser gives us that the app cannot.
+    window.history.pushState(null, "", `${window.location.pathname}${routeSearch(next)}`);
+    setRoute(next);
+  }, []);
 
-function rememberSurface(surface: Surface) {
-  try {
-    window.sessionStorage.setItem(SURFACE_KEY, surface);
-  } catch {
-    // Nothing is lost that matters; the tab simply forgets where it was.
-  }
+  return [route, go];
 }
 
 function isToday(date: Date): boolean {
@@ -91,14 +99,12 @@ function DayHeader({
 }
 
 export function TodayView({ onSignOut }: { onSignOut: () => void }) {
-  const [date, setDate] = useState(() => new Date());
   // Three surfaces, one at a time. The conversation lives above all of them,
   // so moving between them never ends it.
-  //
-  // Remembered per tab: a reload mid-pass has to come back to the pass, not to
-  // Idag. Per tab and not per browser on purpose — a tab opened fresh to check
-  // the day's calories should land on the day, not be thrown into a run.
-  const [surface, setSurface] = useState<Surface>(rememberedSurface);
+  const [route, go] = useRoute();
+  const { date, surface } = route;
+  const setSurface = (next: Surface) => go({ ...route, surface: next });
+  const setDate = (next: Date) => go({ ...route, date: next });
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation();
@@ -107,8 +113,6 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const [history, setHistory] = useState<HistoryWindow | null>(null);
   const [activeRun, setActiveRun] = useState<TrainingRun | null>(null);
   const [error, setError] = useState("");
-
-  useEffect(() => { rememberSurface(surface); }, [surface]);
 
   // Only to know whether a pass is running. Saying "Dagens pass" while one is
   // in progress would be the surface's own small lie.
@@ -180,7 +184,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
     <div className="app-shell">
       <DayHeader
         date={date}
-        move={(days) => setDate((current) => addDays(current, days))}
+        move={(days) => setDate(addDays(date, days))}
         goToToday={() => setDate(new Date())}
         onSignOut={onSignOut}
       />
