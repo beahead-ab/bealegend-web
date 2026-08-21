@@ -222,7 +222,10 @@ function RunBar({ session, state }: { session: TrainingSession; state: ReturnTyp
 
   return (
     <div className="run-bar">
-      <div className="run-clock">
+      {/* Spoken as well as shown. "Pausat" and "3 väntar på nätet" are exactly
+          the facts we chose to write in plain words — but only for whoever can
+          see them. */}
+      <div className="run-clock" role="status">
         <strong>{clockText(state.activeSeconds)}</strong>
         <span className="run-status">aktiv tid</span>
         {run.status === "paused" && <span className="run-status">Pausat</span>}

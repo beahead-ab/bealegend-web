@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
 import { SessionView } from "./SessionView";
@@ -71,11 +71,15 @@ function DayHeader({
   move,
   goToToday,
   onSignOut,
+  name,
+  runActive,
 }: {
   date: Date;
   move: (days: number) => void;
   goToToday: () => void;
   onSignOut: () => void;
+  name: string | null | undefined;
+  runActive: boolean;
 }) {
   const today = isToday(date);
   return (
@@ -92,9 +96,78 @@ function DayHeader({
       {!today && <button className="pill" onClick={goToToday}>Till idag</button>}
 
       <div className="header-actions">
-        <button className="icon-button" onClick={onSignOut} title="Logga ut" aria-label="Logga ut">⏻</button>
+        <AccountMenu name={name} runActive={runActive} onSignOut={onSignOut} />
       </div>
     </header>
+  );
+}
+
+function initials(name: string | null | undefined): string {
+  const trimmed = name?.trim();
+  return trimmed ? trimmed.slice(0, 1).toUpperCase() : "·";
+}
+
+/**
+ * Signing out used to be a 34 px glyph on the same row as the day arrows, and it
+ * signed you out on the press. That is the argument I made myself about "Kasta
+ * passet" — a destructive action must not sit beside one you press often —
+ * applied in the wrong place. Mid-pass, the mis-tap costs the whole session.
+ *
+ * It now lives behind the account, and asks while a run is going.
+ */
+function AccountMenu({ name, runActive, onSignOut }: {
+  name: string | null | undefined;
+  runActive: boolean;
+  onSignOut: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  useEffect(() => { if (!open) setConfirming(false); }, [open]);
+
+  return (
+    <div className="account" ref={box}>
+      <button
+        className="account-mark"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Konto"
+      >
+        {initials(name)}
+      </button>
+
+      {open && (
+        <div className="account-menu" role="menu">
+          {confirming ? (
+            <>
+              <p className="account-question">
+                {runActive ? "Ett pass pågår. Logga ut ändå?" : "Logga ut?"}
+              </p>
+              <button className="account-item" onClick={() => setOpen(false)}>Stanna kvar</button>
+              <button className="account-item danger" onClick={onSignOut}>Logga ut</button>
+            </>
+          ) : (
+            <button className="account-item" onClick={() => setConfirming(true)}>Logga ut</button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -193,6 +266,8 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         move={(days) => setDate(addDays(date, days))}
         goToToday={() => setDate(new Date())}
         onSignOut={onSignOut}
+        name={overview?.user.first_name}
+        runActive={!!activeRun && !isFinished(activeRun)}
       />
 
       {error && (
