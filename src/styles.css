@@ -195,6 +195,57 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .progress { height: 2px; margin-bottom: 12px; border-radius: 999px; background: rgba(47, 104, 255, 0.16); }
 .progress span { display: block; height: 100%; border-radius: 999px; background: var(--blue); }
 
+/* The three richer forms. Same ink, same rule between rows — a ring and a row
+   belong to one surface, so nothing here introduces a second visual language. */
+
+.ring-widget { display: flex; align-items: center; gap: 16px; padding: 14px 0; }
+.ring { width: 58px; height: 58px; flex: none; }
+.ring-track { fill: none; stroke: rgba(47, 104, 255, 0.16); stroke-width: 6; }
+.ring-fill {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.ring-fill.over { stroke: var(--red); }
+.ring-label {
+  fill: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  text-anchor: middle;
+  dominant-baseline: central;
+  font-variant-numeric: tabular-nums;
+}
+.ring-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ring-text strong { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.chart-widget { padding: 14px 0; }
+.chart-heading, .list-heading { display: flex; align-items: baseline; gap: 12px; }
+.chart-range { margin-left: auto; font-size: 12px; color: var(--muted); }
+.chart-figures { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; }
+.chart-figures strong { font-size: 21px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.chart-change { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart { display: block; width: 100%; height: auto; margin-top: 8px; }
+.chart-line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-dot { fill: var(--blue); }
+.chart-bounds {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.chart-empty, .list-empty { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+
+.list-widget { padding: 14px 0; }
+.list-widget ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.list-widget li { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; }
+.list-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-detail { margin-left: auto; flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+.list-more { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+
 /* The floor sits on every surface, so the surface reserves room for it. */
 .app-shell { padding-bottom: 92px; }
 

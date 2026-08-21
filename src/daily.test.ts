@@ -16,6 +16,7 @@ const day = (over: Partial<DailyOverview["calories"]> = {}, headline: string | n
   calories: { can_calculate: true, goal: 2400, consumed: 1160, remaining: 1240, is_over: false, ...over },
   health: { steps: 4051, step_goal: 7000, active_calories: 445 },
   macros: { protein: 82, carbs: 55, fat: 20, protein_goal: 165, carbs_goal: null, fat_goal: null },
+  meals: [],
 });
 
 describe("heroSentence", () => {

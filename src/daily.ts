@@ -21,6 +21,14 @@ export type DailyOverview = {
     carbs_goal: number | null;
     fat_goal: number | null;
   };
+  meals: Meal[];
+};
+
+export type Meal = {
+  id: string;
+  description: string | null;
+  calories: number;
+  logged_at: string;
 };
 
 export function isoDate(date: Date): string {
