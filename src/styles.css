@@ -246,6 +246,58 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .list-detail { margin-left: auto; flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
 .list-more { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 
+/* The pass, read before it is run. Same card, same rule between rows — a
+   moment is a row that happens to open. */
+
+.session-summary { margin: -8px 0 14px; color: var(--muted); font-size: 14px; }
+.session-notice {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.block-card { padding: 14px 18px; margin-bottom: 14px; }
+.block-card h2 {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.block-card > .moment + .moment { border-top: 1px solid var(--line); }
+
+.moment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 0;
+  text-align: left;
+}
+.moment-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.moment-prescription { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.moment-body { padding: 0 0 14px; }
+.moment-description, .moment-notes { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.moment-notes { margin: 10px 0 0; }
+
+.set-list { list-style: none; margin: 0; padding: 0; }
+.set-list li { display: flex; align-items: baseline; gap: 12px; padding: 5px 0; }
+.set-index {
+  flex: none;
+  width: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.set-line { font-variant-numeric: tabular-nums; }
+.set-rest { margin: 8px 0 0 32px; font-size: 13px; color: var(--muted); }
+
 /* The floor sits on every surface, so the surface reserves room for it. */
 .app-shell { padding-bottom: 92px; }
 

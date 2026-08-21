@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
+import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
 import {
   fetchDashboard,
@@ -67,7 +68,9 @@ function DayHeader({
 
 export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const [date, setDate] = useState(() => new Date());
-  const [threadOpen, setThreadOpen] = useState(false);
+  // Three surfaces, one at a time. The conversation lives above all of them,
+  // so moving between them never ends it.
+  const [surface, setSurface] = useState<"today" | "session" | "thread">("today");
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation();
@@ -116,8 +119,19 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   // would make the sentence a small lie.
   const showsTraining = configured.length === 0 || configured.some((section) => section.group === "Träning");
 
-  if (threadOpen) {
-    return <CoachThread conversation={conversation} onClose={() => setThreadOpen(false)} />;
+  if (surface === "thread") {
+    return <CoachThread conversation={conversation} onClose={() => setSurface("today")} />;
+  }
+
+  if (surface === "session") {
+    return (
+      <SessionView
+        date={date}
+        conversation={conversation}
+        onClose={() => setSurface("today")}
+        onOpenThread={() => setSurface("thread")}
+      />
+    );
   }
 
   return (
@@ -140,13 +154,20 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
 
           {configured.length > 0
             ? configured.map((section) => (
-                <Card key={`${section.group}-${section.widgets[0].binding}`} section={section} overview={overview} history={history} date={date} />
+                <Card
+                  key={`${section.group}-${section.widgets[0].binding}`}
+                  section={section}
+                  overview={overview}
+                  history={history}
+                  date={date}
+                  openTraining={() => setSurface("session")}
+                />
               ))
-            : <BuiltInSurface overview={overview} />}
+            : <BuiltInSurface overview={overview} openTraining={() => setSurface("session")} />}
         </>
       )}
 
-      <CoachFloor conversation={conversation} onOpenThread={() => setThreadOpen(true)} inThread={false} />
+      <CoachFloor conversation={conversation} onOpenThread={() => setSurface("thread")} inThread={false} />
     </div>
   );
 }
@@ -157,15 +178,16 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
  * never arrived — is a heading over nothing, which reads as a surface that
  * broke rather than one that is honest about what it does not know.
  */
-function Card({ section, overview, history, date }: {
+function Card({ section, overview, history, date, openTraining }: {
   section: DashboardSection;
   overview: DailyOverview;
   history: HistoryWindow | null;
   date: Date;
+  openTraining: () => void;
 }) {
   const drawn = section.widgets
     .map((widget) => {
-      const body = drawWidget(widget, overview, history, date);
+      const body = drawWidget(widget, overview, history, date, openTraining);
       return body === null ? null : <div key={widget.binding}>{body}</div>;
     })
     .filter((node) => node !== null);
@@ -190,6 +212,7 @@ function drawWidget(
   overview: DailyOverview,
   history: HistoryWindow | null,
   date: Date,
+  openTraining: () => void,
 ) {
   const word = WORDS[widget.binding];
   const range = rangeFor(widget.scope, date);
@@ -223,7 +246,7 @@ function drawWidget(
       );
     default: {
       if (word.opensTraining) {
-        return <MetricRow label={word.title} value="" onClick={() => undefined} />;
+        return <MetricRow label={word.title} value="" onClick={openTraining} />;
       }
       const value = word.value?.(overview);
       if (value == null) return null;
@@ -244,7 +267,10 @@ function drawWidget(
  * net bolted on: it is the answer for every account that has never touched
  * its dashboard.
  */
-function BuiltInSurface({ overview }: { overview: DailyOverview }) {
+function BuiltInSurface({ overview, openTraining }: {
+  overview: DailyOverview;
+  openTraining: () => void;
+}) {
   const calories = WORDS["daily.energyBudget"].value?.(overview);
   const protein = WORDS["daily.protein"].value?.(overview);
 
@@ -263,7 +289,7 @@ function BuiltInSurface({ overview }: { overview: DailyOverview }) {
       </section>
       <section className="card group-card">
         <h2>Träning</h2>
-        <MetricRow label="Dagens pass" value="" onClick={() => undefined} />
+        <MetricRow label="Dagens pass" value="" onClick={openTraining} />
       </section>
     </>
   );
