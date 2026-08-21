@@ -13,6 +13,7 @@ import {
   type DashboardWidget,
 } from "./dashboard";
 import { fetchOverview, heroSentence, type DailyOverview } from "./daily";
+import { fetchTrainingHome, isFinished, type TrainingRun } from "./training";
 import {
   addDays,
   coveringRange,
@@ -24,6 +25,29 @@ import {
 import { ItemList, LineChart, MetricRow, Ring } from "./widgets";
 
 const SWEDISH = "sv-SE";
+
+type Surface = "today" | "session" | "thread";
+
+const SURFACE_KEY = "bal.surface";
+
+function rememberedSurface(): Surface {
+  try {
+    const stored = window.sessionStorage.getItem(SURFACE_KEY);
+    // The thread is not remembered: it is a conversation you left, and landing
+    // back in it would hide the day you reloaded to see.
+    return stored === "session" ? "session" : "today";
+  } catch {
+    return "today";
+  }
+}
+
+function rememberSurface(surface: Surface) {
+  try {
+    window.sessionStorage.setItem(SURFACE_KEY, surface);
+  } catch {
+    // Nothing is lost that matters; the tab simply forgets where it was.
+  }
+}
 
 function isToday(date: Date): boolean {
   return date.toDateString() === new Date().toDateString();
@@ -70,14 +94,31 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const [date, setDate] = useState(() => new Date());
   // Three surfaces, one at a time. The conversation lives above all of them,
   // so moving between them never ends it.
-  const [surface, setSurface] = useState<"today" | "session" | "thread">("today");
+  //
+  // Remembered per tab: a reload mid-pass has to come back to the pass, not to
+  // Idag. Per tab and not per browser on purpose — a tab opened fresh to check
+  // the day's calories should land on the day, not be thrown into a run.
+  const [surface, setSurface] = useState<Surface>(rememberedSurface);
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation();
   const [overview, setOverview] = useState<DailyOverview | null>(null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
   const [history, setHistory] = useState<HistoryWindow | null>(null);
+  const [activeRun, setActiveRun] = useState<TrainingRun | null>(null);
   const [error, setError] = useState("");
+
+  useEffect(() => { rememberSurface(surface); }, [surface]);
+
+  // Only to know whether a pass is running. Saying "Dagens pass" while one is
+  // in progress would be the surface's own small lie.
+  useEffect(() => {
+    let cancelled = false;
+    fetchTrainingHome(date)
+      .then((home) => !cancelled && setActiveRun(home.active_run))
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [date]);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +159,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   // still has a session to promise. Claiming one the surface does not show
   // would make the sentence a small lie.
   const showsTraining = configured.length === 0 || configured.some((section) => section.group === "Träning");
+  const runningLabel = activeRun && !isFinished(activeRun) ? "Pågår" : "";
 
   if (surface === "thread") {
     return <CoachThread conversation={conversation} onClose={() => setSurface("today")} />;
@@ -161,9 +203,16 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
                   history={history}
                   date={date}
                   openTraining={() => setSurface("session")}
+                  runningLabel={runningLabel}
                 />
               ))
-            : <BuiltInSurface overview={overview} openTraining={() => setSurface("session")} />}
+            : (
+              <BuiltInSurface
+                overview={overview}
+                openTraining={() => setSurface("session")}
+                runningLabel={runningLabel}
+              />
+            )}
         </>
       )}
 
@@ -178,16 +227,17 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
  * never arrived — is a heading over nothing, which reads as a surface that
  * broke rather than one that is honest about what it does not know.
  */
-function Card({ section, overview, history, date, openTraining }: {
+function Card({ section, overview, history, date, openTraining, runningLabel }: {
   section: DashboardSection;
   overview: DailyOverview;
   history: HistoryWindow | null;
   date: Date;
   openTraining: () => void;
+  runningLabel: string;
 }) {
   const drawn = section.widgets
     .map((widget) => {
-      const body = drawWidget(widget, overview, history, date, openTraining);
+      const body = drawWidget(widget, overview, history, date, openTraining, runningLabel);
       return body === null ? null : <div key={widget.binding}>{body}</div>;
     })
     .filter((node) => node !== null);
@@ -213,6 +263,7 @@ function drawWidget(
   history: HistoryWindow | null,
   date: Date,
   openTraining: () => void,
+  runningLabel: string,
 ) {
   const word = WORDS[widget.binding];
   const range = rangeFor(widget.scope, date);
@@ -246,7 +297,7 @@ function drawWidget(
       );
     default: {
       if (word.opensTraining) {
-        return <MetricRow label={word.title} value="" onClick={openTraining} />;
+        return <MetricRow label={word.title} value={runningLabel} onClick={openTraining} />;
       }
       const value = word.value?.(overview);
       if (value == null) return null;
@@ -267,9 +318,10 @@ function drawWidget(
  * net bolted on: it is the answer for every account that has never touched
  * its dashboard.
  */
-function BuiltInSurface({ overview, openTraining }: {
+function BuiltInSurface({ overview, openTraining, runningLabel }: {
   overview: DailyOverview;
   openTraining: () => void;
+  runningLabel: string;
 }) {
   const calories = WORDS["daily.energyBudget"].value?.(overview);
   const protein = WORDS["daily.protein"].value?.(overview);
@@ -289,7 +341,7 @@ function BuiltInSurface({ overview, openTraining }: {
       </section>
       <section className="card group-card">
         <h2>Träning</h2>
-        <MetricRow label="Dagens pass" value="" onClick={openTraining} />
+        <MetricRow label="Dagens pass" value={runningLabel} onClick={openTraining} />
       </section>
     </>
   );

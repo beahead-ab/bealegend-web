@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockText, setKey } from "./useRun";
+import { clockText, newerOf, setKey } from "./useRun";
 import { isEarlyFinish, type TrainingRun, type TrainingSession } from "./training";
 
 const session = (ids: string[]): TrainingSession => ({
@@ -83,5 +83,31 @@ describe("setKey", () => {
    *  index alone would collide the second set of every moment in the pass. */
   it("names a set by its moment as well as its number", () => {
     expect(setKey("step-a", 2)).not.toBe(setKey("step-b", 2));
+  });
+});
+
+describe("newerOf", () => {
+  const at = (version: number): TrainingRun => ({ ...run("a"), state_version: version });
+
+  /** The rule the stream needs: only it can deliver two readings out of order,
+   *  because the queue sends one at a time. */
+  it("ignores a reading that overtook a newer one", () => {
+    expect(newerOf(at(9), at(7)).state_version).toBe(9);
+  });
+
+  it("takes a reading that moves the run forward", () => {
+    expect(newerOf(at(7), at(9)).state_version).toBe(9);
+  });
+
+  /** Same version, fresher answer — the run itself may still differ, and the
+   *  newer answer is the one the server just sent. */
+  it("takes the newer answer when the version has not moved", () => {
+    const incoming = at(9);
+
+    expect(newerOf(at(9), incoming)).toBe(incoming);
+  });
+
+  it("takes anything when there is nothing yet", () => {
+    expect(newerOf(null, at(1)).state_version).toBe(1);
   });
 });
