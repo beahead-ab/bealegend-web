@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockText } from "./useRun";
+import { clockText, setKey } from "./useRun";
 import { isEarlyFinish, type TrainingRun, type TrainingSession } from "./training";
 
 const session = (ids: string[]): TrainingSession => ({
@@ -75,5 +75,13 @@ describe("isEarlyFinish", () => {
   it("does not call a run early when it cannot tell", () => {
     expect(isEarlyFinish(session(["a"]), run(null))).toBe(false);
     expect(isEarlyFinish(session([]), run("a"))).toBe(false);
+  });
+});
+
+describe("setKey", () => {
+  /** The set a command addresses is a step and an index together. Keying on the
+   *  index alone would collide the second set of every moment in the pass. */
+  it("names a set by its moment as well as its number", () => {
+    expect(setKey("step-a", 2)).not.toBe(setKey("step-b", 2));
   });
 });
