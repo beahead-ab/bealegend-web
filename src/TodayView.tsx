@@ -2,16 +2,27 @@ import { useEffect, useState } from "react";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
 import { useConversation } from "./conversation";
-import { fetchDashboard, sections, WORDS, type DashboardConfig } from "./dashboard";
+import {
+  fetchDashboard,
+  sections,
+  windowScopes,
+  WORDS,
+  type DashboardConfig,
+  type DashboardSection,
+  type DashboardWidget,
+} from "./dashboard";
 import { fetchOverview, heroSentence, type DailyOverview } from "./daily";
+import {
+  addDays,
+  coveringRange,
+  fetchHistory,
+  rangeFor,
+  rangeLabel,
+  type HistoryWindow,
+} from "./history";
+import { ItemList, LineChart, MetricRow, Ring } from "./widgets";
 
 const SWEDISH = "sv-SE";
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
 
 function isToday(date: Date): boolean {
   return date.toDateString() === new Date().toDateString();
@@ -54,34 +65,6 @@ function DayHeader({
   );
 }
 
-function MetricRow({ label, value, progress, onClick }: {
-  label: string;
-  value: string;
-  progress?: number | null;
-  onClick?: () => void;
-}) {
-  const body = (
-    <>
-      <div className="metric-row">
-        <span className="muted">{label}</span>
-        <strong>{value}</strong>
-        {onClick && <span className="chevron" aria-hidden="true">›</span>}
-      </div>
-      {progress != null && (
-        <div className="progress" aria-hidden="true">
-          <span style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }} />
-        </div>
-      )}
-    </>
-  );
-
-  return onClick ? (
-    <button className="metric-button" onClick={onClick}>{body}</button>
-  ) : (
-    <div>{body}</div>
-  );
-}
-
 export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const [date, setDate] = useState(() => new Date());
   const [threadOpen, setThreadOpen] = useState(false);
@@ -90,6 +73,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const conversation = useConversation();
   const [overview, setOverview] = useState<DailyOverview | null>(null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
+  const [history, setHistory] = useState<HistoryWindow | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -110,6 +94,21 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  // One request covers every window word on the surface, and a surface with
+  // none pays for nothing.
+  useEffect(() => {
+    const range = coveringRange(config ? windowScopes(config.widgets) : [], date);
+    if (!range) {
+      setHistory(null);
+      return;
+    }
+    let cancelled = false;
+    fetchHistory(range)
+      .then((result) => !cancelled && setHistory(result))
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [config, date]);
 
   const configured = config ? sections(config.widgets) : [];
   // The built-in surface always carries Träning, so a day with no configuration
@@ -141,32 +140,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
 
           {configured.length > 0
             ? configured.map((section) => (
-                <section className="card group-card" key={`${section.group}-${section.widgets[0].binding}`}>
-                  <h2>{section.group}</h2>
-                  {section.widgets.map((widget) => {
-                    const word = WORDS[widget.binding];
-                    const value = word.value(overview);
-                    if (word.opensTraining) {
-                      return (
-                        <MetricRow
-                          key={widget.binding}
-                          label={word.title}
-                          value=""
-                          onClick={() => undefined}
-                        />
-                      );
-                    }
-                    if (value === null) return null;
-                    return (
-                      <MetricRow
-                        key={widget.binding}
-                        label={word.title}
-                        value={value}
-                        progress={widget.presentation === "horizontalBudget" ? word.progress?.(overview) : null}
-                      />
-                    );
-                  })}
-                </section>
+                <Card key={`${section.group}-${section.widgets[0].binding}`} section={section} overview={overview} history={history} date={date} />
               ))
             : <BuiltInSurface overview={overview} />}
         </>
@@ -178,14 +152,101 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
 }
 
 /**
+ * A group's card, drawn only once something inside it has something to say. A
+ * card whose words are all still waiting on their window — or whose window
+ * never arrived — is a heading over nothing, which reads as a surface that
+ * broke rather than one that is honest about what it does not know.
+ */
+function Card({ section, overview, history, date }: {
+  section: DashboardSection;
+  overview: DailyOverview;
+  history: HistoryWindow | null;
+  date: Date;
+}) {
+  const drawn = section.widgets
+    .map((widget) => {
+      const body = drawWidget(widget, overview, history, date);
+      return body === null ? null : <div key={widget.binding}>{body}</div>;
+    })
+    .filter((node) => node !== null);
+
+  if (drawn.length === 0) return null;
+
+  return (
+    <section className="card group-card">
+      <h2>{section.group}</h2>
+      {drawn}
+    </section>
+  );
+}
+
+/**
+ * One configured word, drawn in the form the configuration asked for. Every
+ * branch may decline: a word whose window has not arrived yet draws nothing
+ * rather than an empty frame that fills in a moment later.
+ */
+function drawWidget(
+  widget: DashboardWidget,
+  overview: DailyOverview,
+  history: HistoryWindow | null,
+  date: Date,
+) {
+  const word = WORDS[widget.binding];
+  const range = rangeFor(widget.scope, date);
+  const needsWindow = word.source === "window";
+
+  if (needsWindow && !history) return null;
+
+  switch (widget.presentation) {
+    case "ring": {
+      const progress = word.progress?.(overview);
+      if (progress == null) return null;
+      return <Ring label={word.title} value={word.value?.(overview) ?? ""} progress={progress} />;
+    }
+    case "lineChart":
+      return (
+        <LineChart
+          label={word.title}
+          series={word.series?.(history as HistoryWindow, range) ?? []}
+          unit={word.unit}
+          range={rangeLabel(widget.scope)}
+          empty={word.empty ?? "Inget att visa än."}
+        />
+      );
+    case "list":
+      return (
+        <ItemList
+          label={word.title}
+          items={word.items?.(overview, history, range) ?? []}
+          empty={word.empty ?? "Inget att visa än."}
+        />
+      );
+    default: {
+      if (word.opensTraining) {
+        return <MetricRow label={word.title} value="" onClick={() => undefined} />;
+      }
+      const value = word.value?.(overview);
+      if (value == null) return null;
+      return (
+        <MetricRow
+          label={word.title}
+          value={value}
+          progress={widget.presentation === "horizontalBudget" ? word.progress?.(overview) : null}
+        />
+      );
+    }
+  }
+}
+
+/**
  * The surface as it is without a configuration — a first sign-in, an offline
  * start, or a dashboard describing nothing this build can draw. Not a safety
  * net bolted on: it is the answer for every account that has never touched
  * its dashboard.
  */
 function BuiltInSurface({ overview }: { overview: DailyOverview }) {
-  const calories = WORDS["daily.energyBudget"].value(overview);
-  const protein = WORDS["daily.protein"].value(overview);
+  const calories = WORDS["daily.energyBudget"].value?.(overview);
+  const protein = WORDS["daily.protein"].value?.(overview);
 
   return (
     <>
