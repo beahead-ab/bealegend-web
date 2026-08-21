@@ -23,6 +23,9 @@
   }
 
   header {
+    # Belt to the outer proxy's braces: if this container is ever served from
+    # somewhere other than app.bealegend.app, the instruction travels with it.
+    X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
     X-Content-Type-Options nosniff
     Referrer-Policy strict-origin-when-cross-origin
     Permissions-Policy "camera=(), geolocation=()"

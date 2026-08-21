@@ -1,0 +1,4 @@
+# Not public yet. The header X-Robots-Tag on every response is what actually
+# prevents indexing; this is the courtesy a crawler looks for first.
+User-agent: *
+Disallow: /
