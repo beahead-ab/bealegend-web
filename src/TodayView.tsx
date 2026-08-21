@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { CoachFloor } from "./CoachFloor";
+import { CoachThread } from "./CoachThread";
+import { useConversation } from "./conversation";
 import { fetchDashboard, sections, WORDS, type DashboardConfig } from "./dashboard";
 import { fetchOverview, heroSentence, type DailyOverview } from "./daily";
 
@@ -81,6 +84,10 @@ function MetricRow({ label, value, progress, onClick }: {
 
 export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const [date, setDate] = useState(() => new Date());
+  const [threadOpen, setThreadOpen] = useState(false);
+  // Owned here, above both surfaces: leaving the thread must not end the
+  // conversation, which is the whole point of §3.3's ongoing state.
+  const conversation = useConversation();
   const [overview, setOverview] = useState<DailyOverview | null>(null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
   const [error, setError] = useState("");
@@ -109,6 +116,10 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   // still has a session to promise. Claiming one the surface does not show
   // would make the sentence a small lie.
   const showsTraining = configured.length === 0 || configured.some((section) => section.group === "Träning");
+
+  if (threadOpen) {
+    return <CoachThread conversation={conversation} onClose={() => setThreadOpen(false)} />;
+  }
 
   return (
     <div className="app-shell">
@@ -160,6 +171,8 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
             : <BuiltInSurface overview={overview} />}
         </>
       )}
+
+      <CoachFloor conversation={conversation} onOpenThread={() => setThreadOpen(true)} inThread={false} />
     </div>
   );
 }
