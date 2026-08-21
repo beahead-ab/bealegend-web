@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { MicIcon, SendIcon, StopIcon } from "./icons";
 import { appendTranscript, useDictation } from "./useDictation";
 import type { useConversation } from "./conversation";
 
@@ -76,15 +77,15 @@ export function CoachFloor({
             without this the button you press to stop vanishes under the send
             button on the first word spoken — the bug iOS found. */}
         {dictation.listening ? (
-          <button className="floor-stop" onClick={dictation.toggle} aria-label="Sluta diktera">■</button>
+          <button className="floor-stop" onClick={dictation.toggle} aria-label="Sluta diktera"><StopIcon /></button>
         ) : conversation.answering ? (
           <span className="floor-spinner" aria-label="Coachen svarar" />
         ) : conversation.canSend ? (
-          <button className="floor-send" onClick={submit} aria-label="Skicka">↑</button>
+          <button className="floor-send" onClick={submit} aria-label="Skicka"><SendIcon /></button>
         ) : dictation.supported ? (
-          <button className="floor-mic" onClick={dictation.toggle} aria-label="Diktera">🎙</button>
+          <button className="floor-mic" onClick={dictation.toggle} aria-label="Diktera"><MicIcon /></button>
         ) : (
-          <button className="floor-send" disabled aria-label="Skicka">↑</button>
+          <button className="floor-send" disabled aria-label="Skicka"><SendIcon /></button>
         )}
       </div>
 
