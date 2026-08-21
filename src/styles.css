@@ -338,7 +338,46 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   font-variant-numeric: tabular-nums;
 }
 .set-fields input:focus { outline: none; border-color: var(--blue); }
-.set-buttons { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.set-buttons { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-top: 12px; }
+.primary-button.wide { width: 100%; min-height: 52px; font-size: 15px; }
+.quiet-button.centred { padding: 8px; text-align: center; }
+
+/* The rest, where the clock already stands. Same ink, same pill — a countdown
+   is not a reason to introduce a second visual language mid-pass. */
+.rest-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  background: rgba(47, 104, 255, 0.10);
+}
+/* Nearly the size of the pass clock: mid-pass this is the number being read,
+   often from a phone lying on a bench an arm's length away. */
+.rest-chip strong { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.rest-word {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* The quiet receipt: the fill drains, nothing flashes and nothing scales. */
+.rest-chip.done { background: var(--surface); border: 1px solid var(--line); }
+
+/**
+ * Touch targets. The tight measurements are right where there is a mouse and
+ * wrong where there is a thumb, so they stay and this widens them only for a
+ * coarse pointer — the desktop surface is pixel-identical to before.
+ */
+@media (pointer: coarse) {
+  .icon-button { width: 44px; height: 44px; }
+  .floor-send, .floor-mic, .floor-stop { width: 44px; height: 44px; }
+  .pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; }
+  .primary-button { min-height: 44px; }
+  .quiet-button { padding: 12px 8px; }
+  .moment-head { padding: 16px 0; }
+}
 
 /* Its own row, below the line — never beside the button that saves the pass. */
 .run-discard { width: 100%; padding-top: 10px; border-top: 1px solid var(--line); }

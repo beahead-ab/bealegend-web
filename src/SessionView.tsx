@@ -61,12 +61,16 @@ function SetLogger({ set, stepId, state }: {
   // start, which is the number this field was filled from in the first place.
   const changedWeight = typedWeight !== null && typedWeight !== suggested ? typedWeight : null;
 
-  const log = (action: "complete_set" | "skip_set") =>
+  const log = (action: "complete_set" | "skip_set") => {
     state.logSet(action, stepId, set.index, {
       repetitions: numberOrNull(repetitions),
       weightKg: changedWeight,
       effortRpe: numberOrNull(rpe),
     });
+    // The prescription already says how long to rest; nobody should have to
+    // read it off the screen and then time it themselves.
+    state.startRest(set.rest_seconds);
+  };
 
   return (
     <div className="set-logger">
@@ -88,9 +92,11 @@ function SetLogger({ set, stepId, state }: {
           <input inputMode="decimal" value={rpe} onChange={(e) => setRpe(e.target.value)} placeholder="–" />
         </label>
       </div>
+      {/* Pressed sweaty, one-handed, often with the bar still racked. It gets
+          the width and the height; the quieter choice gets a text line under. */}
       <div className="set-buttons">
-        <button className="primary-button" onClick={() => log("complete_set")}>Klart</button>
-        <button className="quiet-button" onClick={() => log("skip_set")}>Hoppa över</button>
+        <button className="primary-button wide" onClick={() => log("complete_set")}>Klart</button>
+        <button className="quiet-button centred" onClick={() => log("skip_set")}>Hoppa över</button>
       </div>
     </div>
   );
@@ -218,6 +224,7 @@ function RunBar({ session, state }: { session: TrainingSession; state: ReturnTyp
     <div className="run-bar">
       <div className="run-clock">
         <strong>{clockText(state.activeSeconds)}</strong>
+        <span className="run-status">aktiv tid</span>
         {run.status === "paused" && <span className="run-status">Pausat</span>}
         {state.pending > 0 && (
           // Said plainly rather than hidden: the pass is being run, the
@@ -226,6 +233,19 @@ function RunBar({ session, state }: { session: TrainingSession; state: ReturnTyp
           <span className="run-status">{state.pending} väntar på nätet</span>
         )}
       </div>
+      {state.restRemaining !== null && (
+        <div className={state.restRemaining === 0 ? "rest-chip done" : "rest-chip"} role="status">
+          <span className="rest-word">{state.restRemaining === 0 ? "Vila klar" : "Vila"}</span>
+          {state.restRemaining > 0 && <strong>{clockText(state.restRemaining)}</strong>}
+          {state.restRemaining > 0 && (
+            <button className="pill" onClick={() => state.addRest(30)}>+30 s</button>
+          )}
+          <button className="pill" onClick={state.skipRest}>
+            {state.restRemaining === 0 ? "Klart" : "Hoppa"}
+          </button>
+        </div>
+      )}
+
       <div className="run-actions">
         {state.can("pause") && <button className="pill" onClick={() => state.act("pause")}>Pausa</button>}
         {state.can("resume") && <button className="pill" onClick={() => state.act("resume")}>Återuppta</button>}
