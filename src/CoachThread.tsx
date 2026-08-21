@@ -99,7 +99,7 @@ export function CoachThread({
 
               const prose = splitProse(message.text);
               return (
-                <div className="bubble-row coach" key={message.id}>
+                <div className="bubble-row coach" key={message.id} aria-busy={message.streaming || undefined}>
                   <img src="/brandmark.png" alt="" className="coach-avatar" />
                   <div className="coach-body">
                     {message.streaming && !prose.text ? (

@@ -11,9 +11,54 @@
   --muted: #6b6b66;
   --line: #e4e2dc;
   --blue: #2f68ff;
+  --blue-soft: rgba(47, 104, 255, 0.16);
+  --blue-faint: rgba(47, 104, 255, 0.10);
   --red: #c0392b;
+  --error-line: #e9b5af;
+  --error-canvas: #fff2f0;
+  --error-ink: #8d271f;
+  --ok-line: #bfe3ce;
+  --ok-canvas: #f2fbf6;
+  --ok-ink: #1f7a4d;
+  --shadow: rgba(22, 22, 26, 0.10);
+  /* Text on the red button. White carries on the deep red; on the lighter one
+     the dark theme needs, it does not. */
+  --danger-ink: #ffffff;
+  --shadow-soft: rgba(0, 0, 0, 0.05);
   --radius: 14px;
-  color-scheme: light;
+  color-scheme: light dark;
+}
+
+/**
+ * The dark theme, which the native app already had and this client dropped —
+ * so for anyone coming from the app it was a regression at every evening
+ * session, not an absent nicety. Gyms are often dark, and a white surface in
+ * the hand is then the only light source in the room.
+ *
+ * A theme, not a rebuild: the same token names, redefined. Blue lightens,
+ * because #2f68ff on near-black does not carry.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #111114;
+    --surface: #1a1a1e;
+    --ink: #f1f0eb;
+    --muted: #9b9b95;
+    --line: #2c2c33;
+    --blue: #6d95ff;
+    --blue-soft: rgba(109, 149, 255, 0.22);
+    --blue-faint: rgba(109, 149, 255, 0.14);
+    --red: #ef6f60;
+    --error-line: #5c2f29;
+    --error-canvas: #251715;
+    --error-ink: #ffb4aa;
+    --ok-line: #27503c;
+    --ok-canvas: #13241c;
+    --ok-ink: #86d9a9;
+    --shadow: rgba(0, 0, 0, 0.55);
+    --danger-ink: #1a1a1e;
+    --shadow-soft: rgba(0, 0, 0, 0.35);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -58,6 +103,45 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .app-header h1 { margin: 1px 0 0; font-size: 20px; letter-spacing: -0.01em; }
 
 .header-actions { margin-left: auto; display: flex; gap: 4px; }
+
+.account { position: relative; }
+.account-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 190px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.account-item {
+  display: block;
+  width: 100%;
+  padding: 10px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--ink);
+}
+.account-item:hover { background: var(--canvas); }
+.account-item.danger { color: var(--red); }
+.account-question { margin: 6px 10px 8px; font-size: 13px; color: var(--muted); }
 
 .icon-button {
   display: inline-flex;
@@ -122,10 +206,10 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   gap: 12px;
   margin: 12px 0 0;
   padding: 10px 12px;
-  border: 1px solid #e9b5af;
+  border: 1px solid var(--error-line);
   border-radius: 10px;
-  background: #fff2f0;
-  color: #8d271f;
+  background: var(--error-canvas);
+  color: var(--error-ink);
   font-size: 13px;
 }
 /* The way out sits inside the message, so the fix is where the problem is. */
@@ -221,7 +305,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .metric-button { display: block; width: 100%; text-align: left; }
 .chevron { color: var(--muted); margin-left: 4px; }
 
-.progress { height: 2px; margin-bottom: 12px; border-radius: 999px; background: rgba(47, 104, 255, 0.16); }
+.progress { height: 2px; margin-bottom: 12px; border-radius: 999px; background: var(--blue-soft); }
 .progress span { display: block; height: 100%; border-radius: 999px; background: var(--blue); }
 
 /* The three richer forms. Same ink, same rule between rows — a ring and a row
@@ -229,7 +313,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .ring-widget { display: flex; align-items: center; gap: 16px; padding: 14px 0; }
 .ring { width: 58px; height: 58px; flex: none; }
-.ring-track { fill: none; stroke: rgba(47, 104, 255, 0.16); stroke-width: 6; }
+.ring-track { fill: none; stroke: var(--blue-soft); stroke-width: 6; }
 .ring-fill {
   fill: none;
   stroke: var(--blue);
@@ -379,7 +463,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   gap: 8px;
   padding: 6px 8px 6px 12px;
   border-radius: 999px;
-  background: rgba(47, 104, 255, 0.10);
+  background: var(--blue-faint);
 }
 /* Nearly the size of the pass clock: mid-pass this is the number being read,
    often from a phone lying on a bench an arm's length away. */
@@ -400,7 +484,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
  * coarse pointer — the desktop surface is pixel-identical to before.
  */
 @media (pointer: coarse) {
-  .icon-button { width: 44px; height: 44px; }
+  .icon-button, .account-mark { width: 44px; height: 44px; }
   .floor-send, .floor-mic, .floor-stop { width: 44px; height: 44px; }
   .pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; }
   .primary-button { min-height: 44px; }
@@ -416,7 +500,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   padding: 9px 16px;
   border-radius: 999px;
   background: var(--red);
-  color: #fff;
+  color: var(--danger-ink);
   font-size: 14px;
   font-weight: 500;
 }
@@ -444,7 +528,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--surface);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 10px var(--shadow-soft);
 }
 
 .floor-composer textarea {
@@ -568,7 +652,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   font-size: 12px;
   color: var(--muted);
 }
-.chip.done { color: #1f7a4d; border-color: #bfe3ce; background: #f2fbf6; }
+.chip.done { color: var(--ok-ink); border-color: var(--ok-line); background: var(--ok-canvas); }
 
 .floor-mic, .floor-stop {
   display: inline-flex;
