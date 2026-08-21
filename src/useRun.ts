@@ -71,6 +71,12 @@ export type RunState = {
   can: (action: RunAction) => boolean;
   start: () => Promise<void>;
   act: (action: RunAction, extra?: Partial<QueuedCommand>) => void;
+  /** Seconds left of the rest, 0 while the "done" chip still shows, null when
+   *  no rest is running. */
+  restRemaining: number | null;
+  startRest: (seconds: number) => void;
+  addRest: (seconds: number) => void;
+  skipRest: () => void;
   logged: Record<string, LoggedSet>;
   logSet: (
     action: "complete_set" | "skip_set",
@@ -88,6 +94,7 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
   const [pending, setPending] = useState(0);
   const [error, setError] = useState("");
   const [logged, setLogged] = useState<Record<string, LoggedSet>>({});
+  const [rest, setRest] = useState<{ endsAt: number; total: number } | null>(null);
 
   const runRef = useRef(run);
   runRef.current = run;
@@ -137,11 +144,14 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     };
   }, [flush]);
 
+  // Ticks for the pass clock and for the rest countdown alike. The rest has to
+  // keep running while the pass is paused — pausing is what you do *during* a
+  // rest that ran long, and stopping the count then would hide the reason.
   useEffect(() => {
-    if (run?.status !== "active") return;
+    if (run?.status !== "active" && rest === null) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [run?.status]);
+  }, [run?.status, rest]);
 
   /**
    * The other device. A pass started on the phone shows here without anyone
@@ -219,6 +229,31 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     [run],
   );
 
+  /**
+   * The rest between sets — the one number you actually look at mid-pass, and
+   * the only reason to have the phone in your hand between them. Entirely
+   * client-side: no command, no contract, nothing to sync.
+   *
+   * Silent by design. No sound and no vibration, because a gym is not a place
+   * to be startled by a phone you put down on a bench.
+   */
+  const startRest = useCallback((seconds: number) => {
+    if (seconds <= 0) {
+      setRest(null);
+      return;
+    }
+    setRest({ endsAt: Date.now() + seconds * 1000, total: seconds });
+    setNow(Date.now());
+  }, []);
+
+  const addRest = useCallback((seconds: number) => {
+    setRest((current) => (current ? { ...current, endsAt: current.endsAt + seconds * 1000 } : current));
+  }, []);
+
+  const skipRest = useCallback(() => setRest(null), []);
+
+  const restRemaining = rest ? Math.max(0, Math.ceil((rest.endsAt - now) / 1000)) : null;
+
   const logSet = useCallback<RunState["logSet"]>(
     (action, stepId, setIndex, values = {}) => {
       setLogged((previous) => ({
@@ -247,7 +282,10 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     [act],
   );
 
-  return { run, activeSeconds, starting, pending, error, can, start, act, logged, logSet };
+  return {
+    run, activeSeconds, starting, pending, error, can, start, act, logged, logSet,
+    restRemaining, startRest, addRest, skipRest,
+  };
 }
 
 /**
