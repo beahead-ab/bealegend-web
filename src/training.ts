@@ -41,6 +41,54 @@ export type TrainingSession = {
   moments: TrainingMoment[];
 };
 
+/** The seven things a client may ask of a running pass. The server decides
+ *  which are legal right now and says so in `allowed_actions` — this list is
+ *  the vocabulary, not the state machine. */
+export type RunAction =
+  | "pause"
+  | "resume"
+  | "complete_set"
+  | "skip_set"
+  | "complete_step"
+  | "complete"
+  | "cancel";
+
+export type TrainingRun = {
+  id: string;
+  session_id: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  active_seconds: number;
+  current_step_id: string | null;
+  current_set_index: number;
+  state_version: number;
+  allowed_actions: RunAction[];
+  paused_at: string | null;
+  accumulated_pause_seconds: number;
+};
+
+/**
+ * A run nothing more can be asked of. The server's own table allows every
+ * action only from `active` or `paused`, so a queue still holding commands for
+ * one of these is holding work that can never land.
+ */
+export const FINISHED_STATUSES = new Set(["completed", "completed_partial", "cancelled", "discarded"]);
+
+export function isFinished(run: TrainingRun): boolean {
+  return FINISHED_STATUSES.has(run.status);
+}
+
+/**
+ * Reads a step's place in the pass out of the session the surface is showing.
+ * The run itself only names its current step, and a name cannot be ahead or
+ * behind — the order lives in the session.
+ */
+export function ordinalsFrom(session: TrainingSession): (stepId: string) => number | null {
+  const order = new Map(session.moments.map((moment, index) => [moment.id, index]));
+  return (stepId) => order.get(stepId) ?? null;
+}
+
 export type TrainingHome = {
   schema_version: string;
   today_sessions: TrainingSession[];
