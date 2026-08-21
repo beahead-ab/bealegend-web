@@ -1,3 +1,4 @@
+import { ChevronIcon } from "./icons";
 import type { ListItem, SeriesPoint } from "./dashboard";
 
 /** A home surface is not a workspace (DASHBOARD_LANGUAGE.md). A list that grows
@@ -16,7 +17,7 @@ export function MetricRow({ label, value, progress, onClick }: {
       <div className="metric-row">
         <span className="muted">{label}</span>
         <strong>{value}</strong>
-        {onClick && <span className="chevron" aria-hidden="true">›</span>}
+        {onClick && <span className="chevron"><ChevronIcon /></span>}
       </div>
       {progress != null && (
         <div className="progress" aria-hidden="true">
@@ -71,6 +72,7 @@ export function Ring({ label, value, progress }: { label: string; value: string;
 const CHART_WIDTH = 300;
 const CHART_HEIGHT = 84;
 const CHART_PADDING = 8;
+const CHART_INSET = 4;
 
 function chartPoints(series: SeriesPoint[]): string {
   const values = series.map((point) => point.value);
@@ -81,9 +83,11 @@ function chartPoints(series: SeriesPoint[]): string {
 
   return series
     .map((point, index) => {
+      // Inset by the dot's radius: drawn to the very edge, half the marker on
+      // the newest reading falls outside the viewBox and is clipped away.
       const x = series.length === 1
         ? CHART_WIDTH / 2
-        : (index / (series.length - 1)) * CHART_WIDTH;
+        : CHART_INSET + (index / (series.length - 1)) * (CHART_WIDTH - CHART_INSET * 2);
       // A week where the weight never moved is a flat line through the middle,
       // not a division by zero and not a jump to the top of the box.
       const y = span === 0
@@ -96,6 +100,21 @@ function chartPoints(series: SeriesPoint[]): string {
 
 /** One decimal, always. A scale that prints 86 next to 84,2 reads as two
  *  different measurements rather than two ends of one. */
+/** Where the newest reading sits, read back out of the same geometry the line
+ *  is drawn from so the dot cannot drift off it. */
+function latestPoint(series: SeriesPoint[]): { x: number; y: number } {
+  const last = chartPoints(series).split(" ").pop() ?? "0,0";
+  const [x, y] = last.split(",").map(Number);
+  return { x, y };
+}
+
+/** Just the day and month: the year is the same as the window, and repeating
+ *  it in both ends would crowd the one line the reader is here for. */
+function dayLabel(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+}
+
 function chartNumber(value: number, unit?: string): string {
   const text = value.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return unit ? `${text} ${unit}` : text;
@@ -150,8 +169,17 @@ export function LineChart({ label, series, unit, range, empty }: {
         aria-label={`${label}, ${range}: från ${chartNumber(first, unit)} till ${chartNumber(latest, unit)}`}
       >
         <polyline className="chart-line" points={chartPoints(series)} vectorEffect="non-scaling-stroke" />
-        {series.length === 1 && <circle className="chart-dot" cx={CHART_WIDTH / 2} cy={CHART_HEIGHT / 2} r="3" />}
+        {/* A dot on the newest reading, so the latest measurement is findable
+            on the line and not only in the figure above it. */}
+        <circle className="chart-dot" cx={latestPoint(series).x} cy={latestPoint(series).y} r="3.2" />
       </svg>
+      {/* The x-axis was anonymous: a point could be yesterday or three weeks
+          ago. A date at each end is enough to place the line without turning
+          it into a charting tool. */}
+      <div className="chart-days" aria-hidden="true">
+        <span>{dayLabel(series[0].date)}</span>
+        <span>{dayLabel(series[series.length - 1].date)}</span>
+      </div>
       {/* Named rather than bare. Two numbers at the ends of a line read as its
           start and finish, which is what they are not — the left one is the
           lowest point, and here it happens to be the newest. */}

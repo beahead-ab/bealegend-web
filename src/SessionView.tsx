@@ -20,6 +20,7 @@ import {
   type TrainingSession,
 } from "./training";
 import { clockText, setKey, useRun, type LoggedSet } from "./useRun";
+import { BackIcon, ChevronIcon } from "./icons";
 
 type Conversation = ReturnType<typeof useConversation>;
 
@@ -124,7 +125,7 @@ function Moment({ moment, here, state }: {
       <button className="moment-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="moment-name">{moment.name}</span>
         <span className="moment-prescription">{momentPrescription(moment)}</span>
-        <span className="chevron" aria-hidden="true">{open ? "⌄" : "›"}</span>
+        <span className="chevron"><ChevronIcon down={open} /></span>
       </button>
 
       {open && (
@@ -362,7 +363,7 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
     <div className="app-shell">
       <header className="thread-header">
         <button className="thread-back" onClick={() => (chosen && !only ? setChosen(null) : onClose())}>
-          ‹ {chosen && !only ? "Dagens pass" : dayLabel(date)}
+          <BackIcon /> {chosen && !only ? "Dagens pass" : dayLabel(date)}
         </button>
       </header>
 
@@ -397,7 +398,7 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
                     <div className="metric-row">
                       <span className="muted">{session.title}</span>
                       <strong>{estimateLabel(session.estimated_seconds) ?? ""}</strong>
-                      <span className="chevron" aria-hidden="true">›</span>
+                      <span className="chevron"><ChevronIcon /></span>
                     </div>
                   </button>
                 </div>

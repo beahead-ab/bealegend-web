@@ -343,6 +343,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .chart { display: block; width: 100%; height: auto; margin-top: 8px; }
 .chart-line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart-dot { fill: var(--blue); }
+.chart-days {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
 .chart-bounds {
   display: flex;
   justify-content: space-between;
@@ -590,6 +597,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .thread-scroll { flex: 1; overflow-y: auto; }
 
 /* Sits just above the floor, so the answer is offered rather than forced. */
+/* Where the conversation paused, not where each turn changed hands: a time on
+   every bubble would make the thread a log. */
+.thread-gap {
+  margin: 14px 0 8px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .thread-catchup {
   position: fixed;
   left: 50%;
