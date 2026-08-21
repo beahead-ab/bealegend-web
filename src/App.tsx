@@ -1,4 +1,5 @@
 import { SignInView } from "./SignInView";
+import { TodayView } from "./TodayView";
 import { useSession } from "./session";
 
 export function App() {
@@ -25,28 +26,5 @@ export function App() {
     );
   }
 
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div>
-          <div className="kicker">Be a Legend</div>
-          <h1>Idag.</h1>
-        </div>
-        <div className="header-actions">
-          <button className="icon-button" onClick={signOut} title="Logga ut" aria-label="Logga ut">
-            ⏻
-          </button>
-        </div>
-      </header>
-
-      <div className="centered">
-        <div className="card">
-          <p style={{ margin: 0 }}>Inloggad.</p>
-          <p className="muted" style={{ margin: "6px 0 0", fontSize: 13 }}>
-            Idag-ytan och chattgolvet byggs härnäst.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+  return <TodayView onSignOut={signOut} />;
 }
