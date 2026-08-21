@@ -117,3 +117,25 @@ export function staleRunFrom<TRun>(error: unknown): TRun | null {
   if (!(error instanceof ApiError) || error.status !== 409 || error.code !== "stale_run_version") return null;
   return (error.body as { current_run?: TRun } | null)?.current_run ?? null;
 }
+
+export type SignedInUser = { id: string; email?: string; first_name?: string };
+
+export const auth = {
+  signIn: (email: string, password: string) =>
+    request<{ authenticated: boolean; user?: SignedInUser }>("/api/v1/web-auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+
+  /**
+   * Also the app's opening move: a session that is still good renews silently,
+   * and one that is not answers 401 without anyone having typed anything.
+   */
+  refresh: () =>
+    request<{ authenticated: boolean; user?: SignedInUser }>("/api/v1/web-auth/refresh", {
+      method: "POST",
+      body: "{}",
+    }),
+
+  signOut: () => request<{ authenticated: boolean }>("/api/v1/web-auth/logout", { method: "POST", body: "{}" }),
+};

@@ -111,3 +111,40 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 .muted { color: var(--muted); }
+
+/* Sign-in: the mark's one place in the chrome, per §2. */
+.sign-in {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  padding: 40px 0;
+}
+
+.sign-in-lockup { display: flex; align-items: center; gap: 12px; }
+.sign-in-mark { height: 46px; width: auto; display: block; }
+
+.wordmark {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.sign-in-form { display: grid; gap: 14px; width: 100%; max-width: 340px; }
+.sign-in-form label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+
+.sign-in-form input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  font: inherit;
+  outline: none;
+}
+
+.sign-in-form input:focus { border-color: var(--ink); }
