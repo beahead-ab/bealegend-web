@@ -290,7 +290,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell day-shell">
       <DayHeader
         date={date}
         move={(days) => setDate(addDays(date, days))}
