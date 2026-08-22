@@ -5,6 +5,8 @@ import {
   estimateLabel,
   momentPrescription,
   restLabel,
+  rpeLine,
+  rpeWords,
   setLine,
   sharedRest,
   type PrescribedSet,
@@ -190,5 +192,29 @@ describe("restLabel and estimateLabel", () => {
 
   it("estimates the pass in minutes", () => {
     expect(estimateLabel(3300)).toBe("ca 55 min");
+  });
+});
+
+describe("rpeWords", () => {
+  /** Siffran är ett lösenord för den som inte redan kan skalan. Meningen är
+   *  vad siffran betyder — båda visas, och ingen behöver kunna skalan utantill. */
+  it("säger vad talet betyder i rep", () => {
+    expect(rpeWords(10)).toBe("inget mer rep fanns");
+    expect(rpeWords(9)).toBe("ett rep kvar");
+    expect(rpeWords(8)).toBe("två rep kvar");
+    expect(rpeWords(7)).toBe("tre rep kvar");
+  });
+
+  it("halvsteg får sin egen mening i stället för att avrundas bort", () => {
+    expect(rpeWords(9.5)).toBe("kanske ett till");
+    expect(rpeWords(8.5)).toBe("ett till två kvar");
+  });
+
+  it("under sex är det lätt, och det sägs så", () => {
+    expect(rpeWords(4)).toBe("lätt, många rep kvar");
+  });
+
+  it("raden är talet och betydelsen, i den ordningen", () => {
+    expect(rpeLine(8)).toBe("RPE 8 · två rep kvar");
   });
 });

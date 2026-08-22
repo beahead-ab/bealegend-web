@@ -226,6 +226,31 @@ export function isEarlyFinish(session: TrainingSession, run: TrainingRun): boole
   return last !== undefined && last.id !== run.current_step_id;
 }
 
+/**
+ * RPE in words. The scale is a number the app inherited from the training
+ * world, and a number alone tells a beginner nothing — "RPE 8" is only
+ * meaningful if you already know it means two reps left in the tank. The
+ * sentence is what the number means, so both can be shown and the number stops
+ * being a password.
+ *
+ * Written from the effort's own side ("två rep kvar"), not as a judgement.
+ */
+export function rpeWords(rpe: number): string {
+  if (rpe >= 10) return "inget mer rep fanns";
+  if (rpe >= 9.5) return "kanske ett till";
+  if (rpe >= 9) return "ett rep kvar";
+  if (rpe >= 8.5) return "ett till två kvar";
+  if (rpe >= 8) return "två rep kvar";
+  if (rpe >= 7) return "tre rep kvar";
+  if (rpe >= 6) return "fyra rep kvar";
+  return "lätt, många rep kvar";
+}
+
+/** RPE as it should be read out: the number, then what it means. */
+export function rpeLine(rpe: number): string {
+  return `RPE ${rpe.toLocaleString("sv-SE")} · ${rpeWords(rpe)}`;
+}
+
 export function setLine(set: PrescribedSet, showRest = true): string {
   const parts: string[] = [];
   const each = measure(set.repetitions, set.duration_seconds, set.distance_meters);

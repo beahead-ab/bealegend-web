@@ -11,6 +11,7 @@ import {
   momentPrescription,
   phaseLabel,
   restLabel,
+  rpeWords,
   setLine,
   sharedRest,
   type PrescribedSet,
@@ -57,6 +58,7 @@ function SetLogger({ set, stepId, state }: {
   const [rpe, setRpe] = useState("");
 
   const suggested = set.suggested_weight_kg;
+  const typedRpe = numberOrNull(rpe);
   const typedWeight = numberOrNull(weight);
   // Unchanged means unsent: the server then records the weight it froze at the
   // start, which is the number this field was filled from in the first place.
@@ -91,6 +93,12 @@ function SetLogger({ set, stepId, state }: {
         <label>
           <span>RPE</span>
           <input inputMode="decimal" value={rpe} onChange={(e) => setRpe(e.target.value)} placeholder="–" />
+          {/* The number means something, and the meaning is what someone
+              mid-pass actually knows. It appears as they type rather than as a
+              legend nobody reads before the first set. */}
+          <small className="field-hint muted">
+            {typedRpe != null ? rpeWords(typedRpe) : "10 = inget mer rep fanns"}
+          </small>
         </label>
       </div>
       {/* Pressed sweaty, one-handed, often with the bar still racked. It gets
@@ -144,7 +152,15 @@ function Moment({ moment, here, state }: {
                 return (
                   <li key={set.index} className={current ? "current" : undefined}>
                     <span className="set-index">{set.index}</span>
-                    <span className="set-line">{setLine(set, rest === null)}</span>
+                    <span className="set-line">
+                      {setLine(set, rest === null)}
+                      {/* On the set being done now, the RPE gets its meaning
+                          spelled out. On the rest it would be four repetitions
+                          of the same sentence. */}
+                      {current && set.target_rpe != null && (
+                        <em className="set-gloss muted"> {rpeWords(set.target_rpe)}</em>
+                      )}
+                    </span>
                     {mark && <span className="set-mark">{mark}</span>}
                   </li>
                 );

@@ -1,6 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { canRender, sections, windowScopes, WORDS, type DashboardWidget } from "./dashboard";
+import {
+  canRender,
+  hiddenCount,
+  sections,
+  visibleWidgets,
+  windowScopes,
+  WORDS,
+  type DashboardWidget,
+} from "./dashboard";
 import type { DailyOverview } from "./daily";
+
+/** Bara det sömnorden läser — resten vore brus i ett test om sömn. */
+function overviewWith(health: Partial<DailyOverview["health"]>): DailyOverview {
+  return {
+    date: "2026-08-22",
+    headline: null,
+    user: { first_name: null },
+    calories: { can_calculate: true, goal: 2400, consumed: 0, remaining: 2400, is_over: false },
+    health: { steps: 0, step_goal: 7000, active_calories: 0, ...health },
+    macros: { protein: 0, carbs: 0, fat: 0, protein_goal: null, carbs_goal: null, fat_goal: null },
+    meals: [],
+  };
+}
 import { rangeFor, type HistoryWindow } from "./history";
 
 const widget = (binding: string, presentation = "metricRow", scope = "today"): DashboardWidget => ({
@@ -235,5 +256,91 @@ describe("training.recentSessions", () => {
   it("draws nothing at all without a window to read", () => {
     expect(WORDS["training.recentSessions"].items!(overview(), null, rangeFor("last7Days", new Date(2026, 7, 21))))
       .toEqual([]);
+  });
+});
+
+describe("de målriktade formerna", () => {
+  it("ritar sömnen som intervall och nedräkningen som nedräkning", () => {
+    expect(canRender(widget("daily.sleep", "rangeBar"))).toBe(true);
+    expect(canRender(widget("goal.countdown", "countdown"))).toBe(true);
+  });
+
+  it("vägrar former orden inte har", () => {
+    expect(canRender(widget("daily.sleep", "lineChart"))).toBe(false);
+    expect(canRender(widget("daily.protein", "rangeBar"))).toBe(false);
+    expect(canRender(widget("goal.countdown", "metricRow"))).toBe(false);
+  });
+
+  it("läser sömnen mot användarens eget fönster", () => {
+    const reading = WORDS["daily.sleep"].range!(overviewWith({
+      sleep_minutes: 450,
+      sleep_goal_min_minutes: 420,
+      sleep_goal_max_minutes: 510,
+    }));
+
+    expect(reading?.text).toBe("7 h 30 min");
+    expect(reading?.band).toBe("i ditt fönster");
+  });
+
+  it("säger under fönstret utan att döma", () => {
+    const reading = WORDS["daily.sleep"].range!(overviewWith({
+      sleep_minutes: 330,
+      sleep_goal_min_minutes: 420,
+      sleep_goal_max_minutes: 510,
+    }));
+
+    expect(reading?.band).toBe("under ditt fönster");
+  });
+
+  /** Utan mål ritas ingen zon — och ingen zon påstås heller. */
+  it("utan sömnmål finns varken zon eller påstående", () => {
+    const reading = WORDS["daily.sleep"].range!(overviewWith({ sleep_minutes: 400 }));
+
+    expect(reading?.min).toBeNull();
+    expect(reading?.max).toBeNull();
+    expect(reading?.band).toBeNull();
+  });
+
+  /** En natt ingen mätt är inte en natt utan sömn. */
+  it("en omätt natt visas som omätt, inte som noll", () => {
+    const reading = WORDS["daily.sleep"].range!(overviewWith({}));
+
+    expect(reading?.value).toBeNull();
+    expect(reading?.text).toBe("Inget mätt i natt");
+  });
+});
+
+describe("visibleWidgets", () => {
+  const many = (count: number) =>
+    ["daily.protein", "daily.carbs", "daily.fat", "daily.steps", "daily.activeEnergy",
+     "daily.energyBudget", "daily.meals", "training.todaySession"]
+      .slice(0, count)
+      .map((binding) => widget(binding, binding === "daily.meals" ? "list" : "metricRow"));
+
+  it("visar sex saker och lägger resten bakom ett ord", () => {
+    expect(visibleWidgets(many(8), false)).toHaveLength(6);
+    expect(hiddenCount(many(8))).toBe(2);
+  });
+
+  it("visar allt när användaren bett om det", () => {
+    expect(visibleWidgets(many(8), true)).toHaveLength(8);
+  });
+
+  it("räknar bara det som faktiskt går att rita", () => {
+    expect(hiddenCount([...many(6), widget("future.somethingElse", "list")])).toBe(0);
+  });
+});
+
+describe("hero", () => {
+  it("ett stort kort står för sig självt", () => {
+    const result = sections([
+      { ...widget("daily.protein", "metricRow"), size: "small" },
+      { ...widget("daily.steps", "metricRow"), size: "large" },
+      { ...widget("daily.activeEnergy", "metricRow"), size: "small" },
+    ]);
+
+    expect(result).toHaveLength(3);
+    expect(result[1].hero).toBe(true);
+    expect(result[0].hero).toBe(false);
   });
 });
