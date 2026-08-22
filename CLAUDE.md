@@ -35,3 +35,10 @@ Bakgrunden och de fullständiga reglerna: `docs/VERSIONERING.md` i backend-repot
 - Inga dubbla hårdkodade versionsnummer. `vite.config.ts` läser `VERSION` och
   injicerar den; ingen källfil får skriva ut ett nummer.
 - Planen och avgränsningarna: [`docs/MVP_PLAN.md`](docs/MVP_PLAN.md).
+
+## Designmålbilden
+
+`docs/DESIGNBESLUT.md` i backend-repot är målbilden och vinner i alla
+designfrågor. Kromen av record: `docs/NAVIGERING_KONCEPT.md` §8 (backend).
+Namn och hemvist följer kontraktet: vikten heter `health.weight`, vilopulsen
+`health.restingHeartRate`, och roller är shapes i serverns vokabulär.

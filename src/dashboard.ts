@@ -156,6 +156,18 @@ export const WORDS: Record<string, Word> = {
         .map((day) => ({ date: day.date, value: day.weight_kg as number }))
         .sort((a, b) => a.date.localeCompare(b.date)),
   },
+  "health.restingHeartRate": {
+    title: "Vilopuls",
+    group: "Hälsa",
+    source: "window",
+    unit: "slag/min",
+    empty: "Ingen vilopuls uppmätt den här perioden.",
+    series: (history, range) =>
+      history.days
+        .filter((day) => day.resting_heart_rate_bpm != null && withinRange(day.date, range))
+        .map((day) => ({ date: day.date, value: day.resting_heart_rate_bpm as number }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+  },
   "training.todaySession": {
     title: "Dagens pass",
     group: "Träning",
