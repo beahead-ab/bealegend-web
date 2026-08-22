@@ -12,7 +12,15 @@ export type DailyOverview = {
     remaining: number;
     is_over: boolean;
   };
-  health: { steps: number; step_goal: number; active_calories: number };
+  health: {
+    steps: number;
+    step_goal: number;
+    active_calories: number;
+    /** Null, never zero: a night nobody measured is not a night without sleep. */
+    sleep_minutes?: number | null;
+    sleep_goal_min_minutes?: number | null;
+    sleep_goal_max_minutes?: number | null;
+  };
   macros: {
     protein: number;
     carbs: number;

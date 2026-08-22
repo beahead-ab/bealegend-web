@@ -5,9 +5,12 @@ import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
 import {
   fetchDashboard,
+  hiddenCount,
   sections,
+  visibleWidgets,
   windowScopes,
   WORDS,
+  type CountdownStatus,
   type DashboardConfig,
   type DashboardSection,
   type DashboardWidget,
@@ -24,7 +27,7 @@ import {
   rangeLabel,
   type HistoryWindow,
 } from "./history";
-import { ItemList, LineChart, MetricRow, Ring } from "./widgets";
+import { Countdown, ItemList, LineChart, MetricRow, RangeBar, Ring } from "./widgets";
 
 const SWEDISH = "sv-SE";
 
@@ -211,6 +214,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   // Bumped to retry: the same fetch, run again, without a reload. Mid-pass,
   // "load the page again" is the most expensive instruction the surface can give.
   const [attempt, setAttempt] = useState(0);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -263,7 +267,10 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const configured = config ? sections(config.widgets) : [];
+  // Six things, then a word. The configuration may hold eight; a home screen
+  // that opens with all of them is the crowding §6 removed.
+  const configured = config ? sections(visibleWidgets(config.widgets, expanded)) : [];
+  const behindMore = config ? hiddenCount(config.widgets) : 0;
   // The built-in surface always carries Träning, so a day with no configuration
   // still has a session to promise. Claiming one the surface does not show
   // would make the sentence a small lie.
@@ -318,17 +325,32 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
           </div>
 
           {configured.length > 0
-            ? configured.map((section) => (
-                <Card
-                  key={`${section.group}-${section.widgets[0].binding}`}
-                  section={section}
-                  overview={overview}
-                  history={history}
-                  date={date}
-                  openTraining={() => setSurface("session")}
-                  runningLabel={runningLabel}
-                />
-              ))
+            ? (
+              <>
+                {configured.map((section) => (
+                  <Card
+                    key={`${section.group}-${section.widgets[0].binding}`}
+                    section={section}
+                    overview={overview}
+                    history={history}
+                    date={date}
+                    countdowns={config?.countdowns ?? []}
+                    openTraining={() => setSurface("session")}
+                    runningLabel={runningLabel}
+                  />
+                ))}
+                {behindMore > 0 && !expanded && (
+                  <button className="quiet-button centred show-more" onClick={() => setExpanded(true)}>
+                    Visa mer ({behindMore})
+                  </button>
+                )}
+                {expanded && behindMore > 0 && (
+                  <button className="quiet-button centred show-more" onClick={() => setExpanded(false)}>
+                    Visa mindre
+                  </button>
+                )}
+              </>
+            )
             : (
               <BuiltInSurface
                 overview={overview}
@@ -373,25 +395,28 @@ function DaySkeleton() {
  * never arrived — is a heading over nothing, which reads as a surface that
  * broke rather than one that is honest about what it does not know.
  */
-function Card({ section, overview, history, date, openTraining, runningLabel }: {
+function Card({ section, overview, history, date, countdowns, openTraining, runningLabel }: {
   section: DashboardSection;
   overview: DailyOverview;
   history: HistoryWindow | null;
   date: Date;
+  countdowns: CountdownStatus[];
   openTraining: () => void;
   runningLabel: string;
 }) {
   const drawn = section.widgets
     .map((widget) => {
-      const body = drawWidget(widget, overview, history, date, openTraining, runningLabel);
+      const body = drawWidget(widget, overview, history, date, countdowns, openTraining, runningLabel, section.hero);
       return body === null ? null : <div key={widget.binding}>{body}</div>;
     })
     .filter((node) => node !== null);
 
   if (drawn.length === 0) return null;
 
+  // A hero keeps the group's name as a quiet line rather than a heading: the
+  // thing itself is the heading at that size.
   return (
-    <section className="card group-card">
+    <section className={section.hero ? "card group-card hero-card" : "card group-card"}>
       <h2>{section.group}</h2>
       {drawn}
     </section>
@@ -408,8 +433,10 @@ function drawWidget(
   overview: DailyOverview,
   history: HistoryWindow | null,
   date: Date,
+  countdowns: CountdownStatus[],
   openTraining: () => void,
   runningLabel: string,
+  hero = false,
 ) {
   const word = WORDS[widget.binding];
   const range = rangeFor(widget.scope, date);
@@ -418,10 +445,26 @@ function drawWidget(
   if (needsWindow && !history) return null;
 
   switch (widget.presentation) {
+    case "rangeBar": {
+      const reading = word.range?.(overview);
+      if (!reading) return null;
+      return <RangeBar label={word.title} reading={reading} hero={hero} />;
+    }
+    case "countdown": {
+      // The server computed it or it is not drawn. A client that derived pace
+      // from the widget's own goal would be a second answer to the same
+      // question, and the whole point is that there is one.
+      const status = countdowns.find((entry) => entry.binding === widget.binding);
+      if (!status) return null;
+      // The unit belongs to the word being measured — "4" is not an answer to
+      // how much is left, and only the measured word knows it is kilos.
+      const unit = widget.measure ? WORDS[widget.measure]?.unit : undefined;
+      return <Countdown status={status} unit={unit} hero={hero} />;
+    }
     case "ring": {
       const progress = word.progress?.(overview);
       if (progress == null) return null;
-      return <Ring label={word.title} value={word.value?.(overview) ?? ""} progress={progress} />;
+      return <Ring label={word.title} value={word.value?.(overview, history, range) ?? ""} progress={progress} />;
     }
     case "lineChart":
       return (
@@ -445,7 +488,7 @@ function drawWidget(
       if (word.opensTraining) {
         return <MetricRow label={word.title} value={runningLabel} onClick={openTraining} />;
       }
-      const value = word.value?.(overview);
+      const value = word.value?.(overview, history, range);
       if (value == null) return null;
       return (
         <MetricRow

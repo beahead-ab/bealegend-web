@@ -1,5 +1,5 @@
 import { ChevronIcon } from "./icons";
-import type { ListItem, SeriesPoint } from "./dashboard";
+import { hoursAndMinutes, type CountdownStatus, type ListItem, type RangeReading, type SeriesPoint } from "./dashboard";
 
 /** A home surface is not a workspace (DASHBOARD_LANGUAGE.md). A list that grows
  *  without a ceiling turns the one into the other, so it says how many are left
@@ -268,6 +268,170 @@ export function ItemList({ label, items, empty }: { label: string; items: ListIt
         </ul>
       )}
       {rest > 0 && <p className="list-more">+{rest} till</p>}
+    </div>
+  );
+}
+
+/**
+ * An interval: a measurement against the floor and ceiling the user set. The
+ * band is drawn from their own goal and never from an opinion about what a
+ * night should be — that distinction is the whole reason this form exists
+ * rather than a second goal ring.
+ *
+ * With no goal set the scale is dashed and the marker still sits where the
+ * measurement fell. The empty state has its own form, and inventing a band to
+ * fill it would make the surface state something the user never said.
+ */
+export function RangeBar({ label, reading, hero = false }: {
+  label: string;
+  reading: RangeReading;
+  hero?: boolean;
+}) {
+  const hasBand = reading.min != null || reading.max != null;
+  // The scale spans the goal with room on both sides, and the padding never
+  // shrinks below two hours: a narrow window would otherwise push a night well
+  // outside it onto the very edge, where being far outside and being just
+  // outside look the same.
+  const low = reading.min ?? reading.max ?? 0;
+  const high = reading.max ?? reading.min ?? 0;
+  const pad = Math.max(high - low, 120);
+  const from = low - pad;
+  const to = high + pad;
+  const place = (value: number) => ((value - from) / (to - from)) * 100;
+  const clamp = (percent: number) => Math.min(Math.max(percent, 0), 100);
+
+  return (
+    <div className={hero ? "range-widget hero-widget" : "range-widget"}>
+      <div className="metric-row">
+        <span className="muted">{label}</span>
+        <strong>{reading.text}</strong>
+      </div>
+      <div className={hasBand ? "range-track" : "range-track no-goal"} aria-hidden="true">
+        {hasBand && (
+          <span
+            className="range-band"
+            style={{
+              left: `${clamp(place(reading.min ?? from))}%`,
+              width: `${clamp(place(reading.max ?? to) - place(reading.min ?? from))}%`,
+            }}
+          />
+        )}
+        {reading.value != null && (
+          <span className="range-marker" style={{ left: `${clamp(place(reading.value))}%` }} />
+        )}
+      </div>
+      <p className="range-caption muted">{caption(reading, hasBand)}</p>
+    </div>
+  );
+}
+
+/** The line under the bar. With nothing measured it names the window and stops
+ *  — repeating "inget mätt i natt" under a value that already says so would be
+ *  the surface talking to itself. */
+function caption(reading: RangeReading, hasBand: boolean): string {
+  if (!hasBand) return "Inget sömnfönster satt än.";
+  const window = `${hoursAndMinutes(reading.min ?? 0)}–${hoursAndMinutes(reading.max ?? 0)}`;
+  return reading.band ? `${reading.band} · ${window}` : `Ditt fönster: ${window}`;
+}
+
+const COUNTDOWN_WORDS: Record<string, string> = {
+  on_track: "I takt",
+  ahead: "I hamn",
+  behind: "Efter takten",
+  passed: "Datumet har passerat",
+  date_only: "Räknar dagar",
+  no_measurements: "Inget mätt än",
+};
+
+function swedishDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "long" });
+}
+
+function paceText(status: CountdownStatus, unit?: string): string | null {
+  if (status.pace_required_per_week == null) return null;
+  const required = Math.abs(status.pace_required_per_week);
+  const way = (status.pace_required_per_week < 0 ? "ned" : "upp");
+  return `${amount(required, unit)} i veckan ${way}`;
+}
+
+/** A bare number is not an answer to "how much is left". The unit comes from
+ *  the word being measured, which is the only place that knows it. */
+function amount(value: number, unit?: string): string {
+  const text = value.toLocaleString("sv-SE", { maximumFractionDigits: 1 });
+  return unit ? `${text} ${unit}` : text;
+}
+
+/**
+ * The countdown, drawn from numbers the server computed. Three things it
+ * always says when it can: how long is left, what pace that requires, and when
+ * the current pace would arrive — as a band rather than a date, because a
+ * single date would claim a precision the measurements do not have.
+ *
+ * A passed deadline is its own state and gets said out loud. The design target
+ * is explicit that the date must not slip by in silence, so the widget stays
+ * and reports rather than quietly resetting itself.
+ */
+export function Countdown({ status, unit, hero = false }: {
+  status: CountdownStatus;
+  unit?: string;
+  hero?: boolean;
+}) {
+  const days = status.days_left;
+  const passed = status.status === "passed";
+  const headline = status.status === "passed"
+    ? swedishDate(status.deadline)
+    : `${Math.max(days, 0).toLocaleString("sv-SE")} ${Math.abs(days) === 1 ? "dag" : "dagar"}`;
+  // A passed date has no pace left to keep and no arrival to predict. What it
+  // has is a result and a question, and both are said below.
+  const pace = passed ? null : paceText(status, unit);
+  const band = !passed && status.projected_arrival_early && status.projected_arrival_late
+    ? (status.projected_arrival_early === status.projected_arrival_late
+        ? swedishDate(status.projected_arrival_early)
+        : `${swedishDate(status.projected_arrival_early)} – ${swedishDate(status.projected_arrival_late)}`)
+    : null;
+
+  return (
+    <div className={hero ? "countdown-widget hero-widget" : "countdown-widget"}>
+      <div className="metric-row">
+        <span className="muted">{status.title}</span>
+        <strong>{headline}</strong>
+      </div>
+      <p className="countdown-state">{COUNTDOWN_WORDS[status.status] ?? ""}</p>
+      <dl className="countdown-facts">
+        {!passed && (
+          <div>
+            <dt className="muted">Till</dt>
+            <dd>{swedishDate(status.deadline)}</dd>
+          </div>
+        )}
+        {status.remaining != null && status.remaining > 0 && (
+          <div>
+            <dt className="muted">{passed ? "Saknades" : "Kvar"}</dt>
+            <dd>{amount(status.remaining, unit)}</dd>
+          </div>
+        )}
+        {pace && (
+          <div>
+            <dt className="muted">Takt som krävs</dt>
+            <dd>{pace}</dd>
+          </div>
+        )}
+        {band && (
+          <div>
+            <dt className="muted">Framme</dt>
+            <dd>{band}</dd>
+          </div>
+        )}
+      </dl>
+      {passed && (
+        <p className="range-caption muted">Säg till i samtalet om du vill sätta ett nytt datum.</p>
+      )}
+      {status.status === "no_measurements" && (
+        <p className="range-caption muted">Ingen mätning att räkna takt ur än.</p>
+      )}
+      {!passed && status.status === "behind" && status.projected_arrival == null && status.pace_per_week != null && (
+        <p className="range-caption muted">Takten går åt andra hållet, så ingen prognos ges.</p>
+      )}
     </div>
   );
 }

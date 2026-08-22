@@ -735,3 +735,67 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   font-size: 11px;
   color: var(--red);
 }
+
+/* The two targeted forms. Same ink, same rule, same blue as everything else —
+   a new form is a new sentence in the language, not a new language. */
+
+.range-widget, .countdown-widget { padding: 13px 0; }
+
+.range-track {
+  position: relative;
+  height: 6px;
+  margin: 10px 0 8px;
+  border-radius: 999px;
+  background: var(--blue-faint);
+}
+/* No goal set: a dashed scale that says the shape of the answer without
+   inventing one. A solid band here would state a window the user never chose. */
+.range-track.no-goal {
+  background: none;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+}
+.range-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--blue-soft);
+}
+.range-marker {
+  position: absolute;
+  top: -3px;
+  width: 3px;
+  height: 12px;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: var(--blue);
+}
+.range-caption { font-size: 13px; margin: 0; }
+
+.countdown-state { margin: 2px 0 10px; font-size: 13px; color: var(--muted); }
+.countdown-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+.countdown-facts div { display: flex; flex-direction: column; gap: 2px; }
+.countdown-facts dt { font-size: 13px; }
+.countdown-facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+/* Hero: one per surface, and the size is the whole point — the number gets to
+   be read from across the room rather than scanned. */
+.hero-card h2 { margin-bottom: 2px; }
+.hero-widget .metric-row strong {
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 400;
+}
+.hero-widget .metric-row { padding-bottom: 6px; }
+
+.show-more { margin: 2px auto 10px; display: block; }
+
+.field-hint { display: block; margin-top: 4px; font-size: 12px; }
+.set-gloss { font-style: normal; }

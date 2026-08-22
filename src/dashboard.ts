@@ -7,12 +7,55 @@ export type DashboardWidget = {
   scope: string;
   presentation: string;
   size: string;
+  /** The goal behind a countdown. Absent on every other word — daily goals
+   *  live in the profile, and the server refuses them here. */
+  target?: number | null;
+  deadline?: string | null;
+  direction?: string | null;
+  measure?: string | null;
+  label?: string | null;
+};
+
+/**
+ * The countdown, already computed. Pace, forecast and status are the server's
+ * arithmetic — this surface renders them and never derives them, which is what
+ * keeps the phone, the watch and the browser from disagreeing about the same
+ * goal.
+ */
+export type CountdownStatus = {
+  binding: string;
+  title: string;
+  deadline: string;
+  days_left: number;
+  target: number | null;
+  direction: string | null;
+  latest_value: number | null;
+  latest_value_date: string | null;
+  remaining: number | null;
+  pace_per_week: number | null;
+  pace_required_per_week: number | null;
+  projected_arrival: string | null;
+  projected_arrival_early: string | null;
+  projected_arrival_late: string | null;
+  status: string;
 };
 
 export type DashboardConfig = {
   schema_version: string;
   revision: number;
   widgets: DashboardWidget[];
+  countdowns?: CountdownStatus[] | null;
+};
+
+/** What a range bar draws: the measurement, and the band it is measured
+ *  against. Both bounds null is the honest no-goal case, and the bar then
+ *  draws a dashed scale instead of inventing one. */
+export type RangeReading = {
+  value: number | null;
+  min: number | null;
+  max: number | null;
+  text: string;
+  band: string | null;
 };
 
 export function fetchDashboard(): Promise<DashboardConfig> {
@@ -36,10 +79,17 @@ type Word = {
   source: "day" | "window";
   /** Null when the day carries no value — the row is left out rather than
    *  shown as a zero, which would read as a real measurement. */
-  value?: (overview: DailyOverview) => string | null;
+  value?: (overview: DailyOverview, history?: HistoryWindow | null, range?: DateRange) => string | null;
   progress?: (overview: DailyOverview) => number | null;
   series?: (history: HistoryWindow, range: DateRange) => SeriesPoint[];
   items?: (overview: DailyOverview, history: HistoryWindow | null, range: DateRange) => ListItem[];
+  /** An interval word: the measurement against the user's own floor and
+   *  ceiling. Never against an opinion — with no goal set, the bounds are null
+   *  and the bar says so. */
+  range?: (overview: DailyOverview) => RangeReading | null;
+  /** A countdown draws from the config's computed statuses rather than from
+   *  the day, so the reader is a marker: the word can be drawn, by that. */
+  countdown?: true;
   unit?: string;
   /** What a series or list word says when the window holds nothing. Owned by
    *  the word, because only the word knows what was missing. */
@@ -58,6 +108,27 @@ function goalProgress(value: number, goal: number | null): number | null {
 
 /** The local day a UTC instant fell on. Slicing the instant's own text would
  *  file a session finished at 01:00 in Stockholm under the day before. */
+/** 7 h 30 min, the way a person says it. Minutes alone would make the reader
+ *  do the division. */
+export function hoursAndMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  if (hours === 0) return `${rest} min`;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+
+/**
+ * Where the night fell relative to the user's own window. Deliberately plain:
+ * "under ditt fönster", not a verdict. The floor and the ceiling are the
+ * user's, so the sentence describes rather than judges.
+ */
+function sleepBand(value: number | null, min: number | null, max: number | null): string | null {
+  if (value == null) return null;
+  if (min != null && value < min) return "under ditt fönster";
+  if (max != null && value > max) return "över ditt fönster";
+  return "i ditt fönster";
+}
+
 function localDay(instant: string): string {
   const date = new Date(instant);
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -175,6 +246,42 @@ export const WORDS: Record<string, Word> = {
     value: () => "",
     opensTraining: true,
   },
+  "daily.sleep": {
+    title: "Sömn",
+    group: "Hälsa",
+    source: "day",
+    range: (overview) => {
+      const health = overview.health;
+      const value = health.sleep_minutes ?? null;
+      const min = health.sleep_goal_min_minutes ?? null;
+      const max = health.sleep_goal_max_minutes ?? null;
+      return {
+        value,
+        min,
+        max,
+        text: value == null ? "Inget mätt i natt" : hoursAndMinutes(value),
+        band: min == null && max == null ? null : sleepBand(value, min, max),
+      };
+    },
+  },
+  "training.weekVolume": {
+    title: "Veckans pass",
+    group: "Träning",
+    source: "window",
+    empty: "Inga pass den här veckan.",
+    value: (_overview, history, range) => {
+      if (!history || !range) return null;
+      const count = (history.training_runs ?? [])
+        .filter((run) => withinRange(localDay(run.completed_at), range)).length;
+      return count === 1 ? "1 pass" : `${count} pass`;
+    },
+  },
+  "goal.countdown": {
+    title: "Nedräkning",
+    group: "Hälsa",
+    source: "day",
+    countdown: true,
+  },
   "training.recentSessions": {
     title: "Senaste passen",
     group: "Träning",
@@ -207,6 +314,8 @@ const FORM_READER: Record<string, keyof Word> = {
   ring: "progress",
   lineChart: "series",
   list: "items",
+  rangeBar: "range",
+  countdown: "countdown",
 };
 
 /**
@@ -230,7 +339,23 @@ export function windowScopes(widgets: DashboardWidget[]): string[] {
     .map((widget) => widget.scope);
 }
 
-export type DashboardSection = { group: WidgetGroup; widgets: DashboardWidget[] };
+export type DashboardSection = { group: WidgetGroup; widgets: DashboardWidget[]; hero: boolean };
+
+/**
+ * The surface shows six things and puts the rest behind a word. Not a cap —
+ * the configuration may hold eight — but a home screen that opens with
+ * everything at once is the crowding the navigation concept removed.
+ */
+export const VISIBLE_BEFORE_MORE = 6;
+
+export function visibleWidgets(widgets: DashboardWidget[], expanded: boolean): DashboardWidget[] {
+  const drawable = widgets.filter(canRender);
+  return expanded ? drawable : drawable.slice(0, VISIBLE_BEFORE_MORE);
+}
+
+export function hiddenCount(widgets: DashboardWidget[]): number {
+  return Math.max(0, widgets.filter(canRender).length - VISIBLE_BEFORE_MORE);
+}
 
 /**
  * Cards are runs of consecutive widgets sharing a group — never a sort. Sorting
@@ -242,11 +367,14 @@ export function sections(widgets: DashboardWidget[]): DashboardSection[] {
   for (const widget of widgets) {
     if (!canRender(widget)) continue;
     const group = WORDS[widget.binding].group;
+    const hero = widget.size === "large";
     const last = result[result.length - 1];
-    if (last && last.group === group) {
+    // A hero stands alone. Folding it into a group card would make it a row
+    // among rows, which is the one thing the size was asking not to be.
+    if (last && last.group === group && !hero && !last.hero) {
       last.widgets.push(widget);
     } else {
-      result.push({ group, widgets: [widget] });
+      result.push({ group, widgets: [widget], hero });
     }
   }
   return result;
