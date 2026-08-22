@@ -38,28 +38,74 @@ const RING_RADIUS = 26;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 /**
+ * The second lap, drawn just outside the first. Thin and in the same blue,
+ * because its job is to show that a goal was passed — not to say how that felt.
+ *
+ * Outside rather than inside: an inner lap at this size crosses the label, and
+ * a three-digit percentage sat right on top of it. Outside also reads the way
+ * the thing it describes happened — past the goal, not within it.
+ */
+const LAP_RADIUS = 31.5;
+
+/**
+ * Wider than the ring needs, to leave room outside it. At the old 64 the lap
+ * had nowhere to sit that was not touching the ring, and a lap flush against
+ * it reads as a thicker ring rather than as a second turn.
+ */
+const RING_BOX = 72;
+const RING_CENTRE = RING_BOX / 2;
+const LAP_CIRCUMFERENCE = 2 * Math.PI * LAP_RADIUS;
+
+/**
  * A goal drawn as the share of it that is done. The arc is clamped to a full
  * turn while the percentage is not: passing a goal is worth seeing, and a ring
  * that silently stops at 100 % hides it.
+ *
+ * Going over used to turn the ring red, which reads as a fault. For calories
+ * that may be right; for protein and steps 112 % is a good day. Whether
+ * passing a goal is good depends on what the user is doing, and the surface
+ * has no way of knowing — the same reason the weight chart's change is
+ * colourless. So the overshoot gets a second, thinner lap in the same blue:
+ * visible, and silent about whether it is welcome.
+ *
+ * Direction belongs to the word, not to the drawing. If it is ever wanted it
+ * goes on the binding in the server's vocabulary, where it would reach iOS too.
  */
 export function Ring({ label, value, progress }: { label: string; value: string; progress: number }) {
   const filled = Math.min(Math.max(progress, 0), 1);
   const percent = Math.round(progress * 100);
-  const over = progress > 1;
+  // A second lap at most: three times the goal and twice the goal should look
+  // alike, because the number above already says which it was.
+  const lap = Math.min(Math.max(progress - 1, 0), 1);
 
   return (
     <div className="ring-widget">
-      <svg viewBox="0 0 64 64" className="ring" role="img" aria-label={`${label}: ${percent} procent`}>
-        <circle className="ring-track" cx="32" cy="32" r={RING_RADIUS} />
+      <svg
+        viewBox={`0 0 ${RING_BOX} ${RING_BOX}`}
+        className="ring"
+        role="img"
+        aria-label={`${label}: ${percent} procent`}
+      >
+        <circle className="ring-track" cx={RING_CENTRE} cy={RING_CENTRE} r={RING_RADIUS} />
         <circle
-          className={over ? "ring-fill over" : "ring-fill"}
-          cx="32"
-          cy="32"
+          className="ring-fill"
+          cx={RING_CENTRE}
+          cy={RING_CENTRE}
           r={RING_RADIUS}
           strokeDasharray={RING_CIRCUMFERENCE}
           strokeDashoffset={RING_CIRCUMFERENCE * (1 - filled)}
         />
-        <text x="32" y="32" className="ring-label">{percent}%</text>
+        {lap > 0 && (
+          <circle
+            className="ring-lap"
+            cx={RING_CENTRE}
+            cy={RING_CENTRE}
+            r={LAP_RADIUS}
+            strokeDasharray={LAP_CIRCUMFERENCE}
+            strokeDashoffset={LAP_CIRCUMFERENCE * (1 - lap)}
+          />
+        )}
+        <text x={RING_CENTRE} y={RING_CENTRE} className="ring-label">{percent}%</text>
       </svg>
       <div className="ring-text">
         <span className="muted">{label}</span>

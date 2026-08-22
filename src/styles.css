@@ -322,7 +322,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }
-.ring-fill.over { stroke: var(--red); }
+/* Same blue as the first lap, thinner and inset — the ring says a goal was
+   passed without saying whether that was good. */
+.ring-lap {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
 .ring-label {
   fill: var(--ink);
   font-size: 15px;
@@ -514,6 +523,38 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 /* The floor sits on every surface, so the surface reserves room for it. */
 .app-shell { padding-bottom: 92px; }
+
+/**
+ * The day, in two columns where there is room for two.
+ *
+ * The column is a phone's shape, and on a 1440 px screen two thirds of the
+ * window stood empty while Näring, Träning and the charts queued up beneath
+ * each other. Same cards, more places — no new visual vocabulary.
+ *
+ * Only the day. A pass reads top to bottom, warm-up before main set, and
+ * splitting it into columns would break the one thing about it that is not
+ * negotiable: its order.
+ *
+ * `align-items: start` rather than the default stretch, so a short card keeps
+ * its own height instead of being padded out to match a tall neighbour.
+ */
+@media (min-width: 1040px) {
+  .day-shell {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    align-content: start;
+    column-gap: 18px;
+    max-width: 1080px;
+  }
+  /* The date owns the left edge (§2), and the sentence is the day's one voice —
+     neither belongs in a column. */
+  .day-shell > .app-header,
+  .day-shell > .hero,
+  .day-shell > .error-message { grid-column: 1 / -1; }
+  /* The grid owns the spacing now; the card's own margin would add to it. */
+  .day-shell > .card { margin-bottom: 14px; }
+}
 
 .floor {
   position: fixed;
