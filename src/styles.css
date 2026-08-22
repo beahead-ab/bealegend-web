@@ -1,8 +1,9 @@
 /*
- * One chrome, per §8 of the navigation concept: ink-black, cream canvas, blue
- * reserved for data and primary buttons. The variant switcher the native app
- * carried is not repeated here — it is being removed there, and starting a new
- * client with the thing we decided to delete would be a strange way to begin.
+ * One chrome, per §8 of the navigation concept — which since 2026-08-22 is the
+ * resolved form of the design target (docs/DESIGNBESLUT.md in the backend
+ * repo): ink-black on cream, warm ink in the dark, and the data blue
+ * #3c6daa/#67a3e1. Blue is reserved for data and primary buttons. The variant
+ * switcher the native app carried is not repeated here.
  */
 :root {
   --canvas: #faf9f6;
@@ -10,9 +11,9 @@
   --ink: #16161a;
   --muted: #6b6b66;
   --line: #e4e2dc;
-  --blue: #2f68ff;
-  --blue-soft: rgba(47, 104, 255, 0.16);
-  --blue-faint: rgba(47, 104, 255, 0.10);
+  --blue: #3c6daa;
+  --blue-soft: rgba(60, 109, 170, 0.16);
+  --blue-faint: rgba(60, 109, 170, 0.10);
   --red: #c0392b;
   --error-line: #e9b5af;
   --error-canvas: #fff2f0;
@@ -36,18 +37,18 @@
  * the hand is then the only light source in the room.
  *
  * A theme, not a rebuild: the same token names, redefined. Blue lightens,
- * because #2f68ff on near-black does not carry.
+ * because the light blue on near-black does not carry.
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #111114;
-    --surface: #1a1a1e;
-    --ink: #f1f0eb;
-    --muted: #9b9b95;
-    --line: #2c2c33;
-    --blue: #6d95ff;
-    --blue-soft: rgba(109, 149, 255, 0.22);
-    --blue-faint: rgba(109, 149, 255, 0.14);
+    --canvas: #161514;
+    --surface: #23211f;
+    --ink: #f6f4f1;
+    --muted: #a6a4a2;
+    --line: rgba(255, 255, 255, 0.10);
+    --blue: #67a3e1;
+    --blue-soft: rgba(103, 163, 225, 0.22);
+    --blue-faint: rgba(103, 163, 225, 0.14);
     --red: #ef6f60;
     --error-line: #5c2f29;
     --error-canvas: #251715;
@@ -56,7 +57,7 @@
     --ok-canvas: #13241c;
     --ok-ink: #86d9a9;
     --shadow: rgba(0, 0, 0, 0.55);
-    --danger-ink: #1a1a1e;
+    --danger-ink: #161514;
     --shadow-soft: rgba(0, 0, 0, 0.35);
   }
 }

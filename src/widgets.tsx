@@ -161,8 +161,18 @@ function dayLabel(iso: string): string {
   return new Date(year, month - 1, day).toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
 }
 
-function chartNumber(value: number, unit?: string): string {
-  const text = value.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/**
+ * One precision per scale, decided by the data. Weight is measured in tenths,
+ * so its scale prints 84,2 next to 86,0 — never a bare 86, which would read as
+ * a different measurement. A pulse is whole beats, and "52,0 slag/min" would
+ * be false precision. Every number on one chart follows the same rule.
+ */
+function chartDecimals(series: SeriesPoint[]): number {
+  return series.every((point) => Number.isInteger(point.value)) ? 0 : 1;
+}
+
+function chartNumber(value: number, decimals: number, unit?: string): string {
+  const text = value.toLocaleString("sv-SE", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   return unit ? `${text} ${unit}` : text;
 }
 
@@ -192,6 +202,7 @@ export function LineChart({ label, series, unit, range, empty }: {
   const latest = series[series.length - 1].value;
   const first = series[0].value;
   const change = latest - first;
+  const decimals = chartDecimals(series);
 
   return (
     <div className="chart-widget">
@@ -200,19 +211,19 @@ export function LineChart({ label, series, unit, range, empty }: {
         <span className="chart-range">{range}</span>
       </div>
       <div className="chart-figures">
-        <strong>{chartNumber(latest, unit)}</strong>
+        <strong>{chartNumber(latest, decimals, unit)}</strong>
         {series.length > 1 && (
           // Neutral on purpose: whether a falling weight is progress depends on
           // what the user is doing, and colouring it green or red would have the
           // surface take a side it has no way of knowing.
-          <span className="chart-change">{change > 0 ? "+" : ""}{chartNumber(change, unit)}</span>
+          <span className="chart-change">{change > 0 ? "+" : ""}{chartNumber(change, decimals, unit)}</span>
         )}
       </div>
       <svg
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         className="chart"
         role="img"
-        aria-label={`${label}, ${range}: från ${chartNumber(first, unit)} till ${chartNumber(latest, unit)}`}
+        aria-label={`${label}, ${range}: från ${chartNumber(first, decimals, unit)} till ${chartNumber(latest, decimals, unit)}`}
       >
         <polyline className="chart-line" points={chartPoints(series)} vectorEffect="non-scaling-stroke" />
         {/* A dot on the newest reading, so the latest measurement is findable
@@ -230,8 +241,8 @@ export function LineChart({ label, series, unit, range, empty }: {
           start and finish, which is what they are not — the left one is the
           lowest point, and here it happens to be the newest. */}
       <div className="chart-bounds" aria-hidden="true">
-        <span>lägst {chartNumber(Math.min(...values), unit)}</span>
-        <span>högst {chartNumber(Math.max(...values), unit)}</span>
+        <span>lägst {chartNumber(Math.min(...values), decimals, unit)}</span>
+        <span>högst {chartNumber(Math.max(...values), decimals, unit)}</span>
       </div>
     </div>
   );

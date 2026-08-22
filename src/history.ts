@@ -5,6 +5,7 @@ import { isoDate } from "./daily";
 export type HistoryDay = {
   date: string;
   weight_kg: number | null;
+  resting_heart_rate_bpm: number | null;
 };
 
 export type HistoryRun = {

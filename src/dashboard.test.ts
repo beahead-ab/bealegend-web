@@ -116,7 +116,10 @@ const overview = (meals: DailyOverview["meals"] = []): DailyOverview => ({
 });
 
 describe("health.weight", () => {
-  const window = (days: HistoryWindow["days"]): HistoryWindow => ({ days, training_runs: [] });
+  const window = (days: { date: string; weight_kg: number | null }[]): HistoryWindow => ({
+    days: days.map((day) => ({ ...day, resting_heart_rate_bpm: null })),
+    training_runs: [],
+  });
   const range = rangeFor("last7Days", new Date(2026, 7, 21));
 
   it("charts the days that were weighed, oldest first", () => {
@@ -159,6 +162,27 @@ describe("health.weight", () => {
     );
 
     expect(series.map((point) => point.date)).toEqual(["2026-08-18"]);
+  });
+});
+
+describe("health.restingHeartRate", () => {
+  /** Same treatment as weight, and for the same reasons: a series over the
+   *  window, gaps left as gaps, sorted oldest first. The word arrived with the
+   *  design target; the data has been in the history contract all along. */
+  it("charts the mornings that measured, oldest first", () => {
+    const series = WORDS["health.restingHeartRate"].series!(
+      {
+        days: [
+          { date: "2026-08-19", weight_kg: null, resting_heart_rate_bpm: 52 },
+          { date: "2026-08-17", weight_kg: null, resting_heart_rate_bpm: null },
+          { date: "2026-08-16", weight_kg: null, resting_heart_rate_bpm: 54 },
+        ],
+        training_runs: [],
+      },
+      rangeFor("last7Days", new Date(2026, 7, 21)),
+    );
+
+    expect(series.map((point) => point.value)).toEqual([54, 52]);
   });
 });
 
