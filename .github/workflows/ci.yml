@@ -69,4 +69,15 @@ jobs:
             exit 1
           fi
 
+          # Att numret ändrats räcker inte. Två grenar som utgår från samma bas
+          # kan mergas i vilken ordning som helst, och den som kommer sist med
+          # ett *lägre* nummer hade sänkt produktens version utan att någon
+          # kontroll sagt ifrån.
+          if [ -n "$before" ] \
+             && [ "$(printf '%s\n%s\n' "$before" "$after" | sort -V | head -n 1)" != "$before" ]; then
+            echo "VERSION går bakåt: $before -> $after." >&2
+            echo "Basen har hunnit förbi den här grenen. Höj från $before i stället." >&2
+            exit 1
+          fi
+
           echo "VERSION: ${before:-saknades} -> $after"
