@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChangeReceipt } from "./ChangeReceipt";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
 import { SessionView } from "./SessionView";
@@ -412,6 +413,13 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
             <p>{heroSentence(shownDay, showsTraining)}</p>
             <span className="hero-rule" aria-hidden="true" />
           </div>
+
+          {/* Under hero-meningen, över korten: där ögat redan är när ytan ser
+              annorlunda ut än i går. Ritar ingenting när ingenting ändrats. */}
+          <ChangeReceipt onUndone={(next) => {
+            setConfig(next);
+            if (userId) rememberConfig(userId, next);
+          }} />
 
           {configured.length > 0
             ? (
