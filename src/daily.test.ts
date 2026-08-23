@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  dayOnScreen,
   heroSentence,
   isoDate,
   nothingMeasured,
@@ -106,5 +107,24 @@ describe("nothingMeasured", () => {
    *  vad som ätits. */
   it("räknar inte ett satt mål som en mätning", () => {
     expect(nothingMeasured(emptyDay())).toBe(true);
+  });
+});
+
+/**
+ * Rubriken säger vilket datum det här är, och ingenting under den får beskriva
+ * ett annat. Spärren finns för svaret som landar efter att läsaren bläddrat
+ * vidare, och för raden som hamnat under fel nyckel.
+ */
+describe("dayOnScreen", () => {
+  it("ritar dagen när den är dagen", () => {
+    expect(dayOnScreen(day(), "2026-08-21")?.date).toBe("2026-08-21");
+  });
+
+  it("ritar ingenting när svaret beskriver ett annat datum", () => {
+    expect(dayOnScreen(day(), "2026-08-22")).toBe(null);
+  });
+
+  it("ritar ingenting när det inte finns någon dag", () => {
+    expect(dayOnScreen(null, "2026-08-21")).toBe(null);
   });
 });

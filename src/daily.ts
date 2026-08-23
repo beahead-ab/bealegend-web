@@ -84,6 +84,18 @@ export function ruleBasedSentence(overview: DailyOverview, showsTraining: boolea
 }
 
 /**
+ * The day that may be drawn under a given date, or null.
+ *
+ * Every path that loads a day already clears the old one first, and this is
+ * what holds if one ever stops: a stored answer filed under the wrong key, a
+ * response that lands after the reader has paged on. The heading says which
+ * date this is, and nothing below it may describe another one.
+ */
+export function dayOnScreen(overview: DailyOverview | null, iso: string): DailyOverview | null {
+  return overview && overview.date === iso ? overview : null;
+}
+
+/**
  * Whether the day holds a single measurement.
  *
  * Not "is this a new account" — the surface cannot know that, and does not need

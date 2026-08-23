@@ -15,9 +15,17 @@ import {
   type DashboardSection,
   type DashboardWidget,
 } from "./dashboard";
-import { fetchOverview, heroSentence, isoDate, nothingMeasured, type DailyOverview } from "./daily";
+import {
+  dayOnScreen,
+  fetchOverview,
+  heroSentence,
+  isoDate,
+  nothingMeasured,
+  type DailyOverview,
+} from "./daily";
 import { fetchTrainingHome, isFinished, type TrainingRun } from "./training";
-import { fetchedLabel, forget, recall, remember } from "./lastKnown";
+import { fetchedLabel, recallConfig, recallDay, rememberConfig, rememberDay } from "./lastKnown";
+import type { SignedInUser } from "./api";
 import { readRoute, routeSearch, sameRoute, type Route, type Surface } from "./route";
 import { BackIcon, ChevronIcon } from "./icons";
 import {
@@ -186,7 +194,11 @@ function AccountMenu({ name, runActive, onSignOut }: {
   );
 }
 
-export function TodayView({ onSignOut }: { onSignOut: () => void }) {
+export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: SignedInUser }) {
+  // Nothing is remembered for a session we cannot attribute. Failing closed
+  // costs a refetch; the alternative is one person's day in a store the next
+  // person could read.
+  const userId = user?.id;
   // Three surfaces, one at a time. The conversation lives above all of them,
   // so moving between them never ends it.
   const [route, go] = useRoute();
@@ -213,6 +225,11 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   // in progress would be the surface's own small lie.
   useEffect(() => {
     let cancelled = false;
+    // Cleared first. "Pågår" and the pass shortcut belong to the day they were
+    // read for, and leaving them up while another day loads is the surface
+    // saying something true about yesterday as though it were about today.
+    setActiveRun(null);
+    setHasSession(false);
     fetchTrainingHome(date)
       .then((home) => {
         if (cancelled) return;
@@ -230,7 +247,14 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
+    const iso = isoDate(date);
     setError("");
+    // The day on screen goes before the new one is asked for. Keeping it would
+    // draw one date's numbers under another's heading for as long as the
+    // request takes — and for good, if it fails and nothing is cached.
+    setOverview(null);
+    setFetchedAt(null);
+    setExpanded(false);
     fetchOverview(date)
       .then((result) => {
         if (cancelled) return;
@@ -238,7 +262,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         setFetchedAt(null);
         // Written only from a real answer, so what is replayed later was true
         // when it was written.
-        remember(isoDate(date), result);
+        if (userId) rememberDay(userId, iso, result);
       })
       // Never an empty page. The last day the server answered with is drawn
       // instead, with the hour it was fetched — freshness is what a lost
@@ -246,7 +270,9 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
       // falls through to the message.
       .catch(() => {
         if (cancelled) return;
-        const kept = recall(isoDate(date));
+        // This date's own answer or none. A neighbouring day is not a worse
+        // version of this one — it is a different one.
+        const kept = userId ? recallDay(userId, iso) : null;
         if (kept) {
           setOverview(kept.overview);
           setFetchedAt(kept.at);
@@ -255,17 +281,27 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         setError("Dagen kunde inte hämtas just nu.");
       });
     return () => { cancelled = true; };
-  }, [date, attempt]);
+  }, [date, attempt, userId]);
 
   useEffect(() => {
     let cancelled = false;
-    // A dashboard that cannot be fetched costs personalisation, never the
-    // screen — the built-in surface below is what runs then.
+    // The remembered shape first, so an offline start draws the user's own
+    // surface rather than the built-in one. It is replaced the moment a real
+    // answer arrives; a dashboard that cannot be fetched costs personalisation,
+    // never the screen.
+    if (userId) {
+      const kept = recallConfig(userId);
+      if (kept) setConfig(kept);
+    }
     fetchDashboard()
-      .then((result) => !cancelled && setConfig(result))
+      .then((result) => {
+        if (cancelled) return;
+        setConfig(result);
+        if (userId) rememberConfig(userId, result);
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, []);
+  }, [userId]);
 
   // One request covers every window word on the surface, and a surface with
   // none pays for nothing.
@@ -276,6 +312,9 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
       return;
     }
     let cancelled = false;
+    // Same reason as the day: a window read for one date must not be drawn
+    // under another while the new one is on its way.
+    setHistory(null);
     fetchHistory(range)
       .then((result) => !cancelled && setHistory(result))
       .catch(() => undefined);
@@ -296,6 +335,16 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  /**
+   * The day, but only if it is this day.
+   *
+   * Every path above already clears on a date change, and this is what holds
+   * if one ever stops: a stored answer filed wrong, a response that lands after
+   * the user has paged on. The heading says which date this is, and nothing
+   * below it may describe another one.
+   */
+  const shownDay = dayOnScreen(overview, isoDate(date));
 
   // Six things, then a word. The configuration may hold eight; a home screen
   // that opens with all of them is the crowding §6 removed.
@@ -332,13 +381,8 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         date={date}
         move={(days) => setDate(addDays(date, days))}
         goToToday={() => setDate(new Date())}
-        onSignOut={() => {
-          // The remembered days are one person's measurements. They must not
-          // still be readable by whoever signs in next on this machine.
-          forget();
-          onSignOut();
-        }}
-        name={overview?.user.first_name}
+        onSignOut={onSignOut}
+        name={shownDay?.user.first_name}
         runActive={!!activeRun && !isFinished(activeRun)}
         atFuture={atFuture}
       />
@@ -360,12 +404,12 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         </div>
       )}
 
-      {!overview && !error && <DaySkeleton />}
+      {!shownDay && !error && <DaySkeleton />}
 
-      {overview && (
+      {shownDay && (
         <>
           <div className="hero">
-            <p>{heroSentence(overview, showsTraining)}</p>
+            <p>{heroSentence(shownDay, showsTraining)}</p>
             <span className="hero-rule" aria-hidden="true" />
           </div>
 
@@ -376,7 +420,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
                   <Card
                     key={`${section.group}-${section.widgets[0].binding}`}
                     section={section}
-                    overview={overview}
+                    overview={shownDay}
                     history={history}
                     date={date}
                     countdowns={config?.countdowns ?? []}
@@ -398,13 +442,13 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
             )
             : (
               <BuiltInSurface
-                overview={overview}
+                overview={shownDay}
                 openTraining={() => setSurface("session")}
                 runningLabel={runningLabel}
               />
             )}
 
-          {!atFuture && nothingMeasured(overview) && (
+          {!atFuture && nothingMeasured(shownDay) && (
             <WaysIn
               hasSession={hasSession}
               openThread={() => setSurface("thread")}
