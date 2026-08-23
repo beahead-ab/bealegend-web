@@ -80,6 +80,15 @@ type Word = {
   /** Null when the day carries no value — the row is left out rather than
    *  shown as a zero, which would read as a real measurement. */
   value?: (overview: DailyOverview, history?: HistoryWindow | null, range?: DateRange) => string | null;
+  /**
+   * Whether anything was actually measured for this word. False draws the
+   * empty form — a dash and a dashed scale — and the value is never consulted.
+   *
+   * Distinct from `value` returning null, which means the word cannot be drawn
+   * at all and the row is left out. Silence and absence look alike in a zero,
+   * and only the word knows which one it is looking at.
+   */
+  measured?: (overview: DailyOverview, history?: HistoryWindow | null, range?: DateRange) => boolean;
   progress?: (overview: DailyOverview) => number | null;
   series?: (history: HistoryWindow, range: DateRange) => SeriesPoint[];
   items?: (overview: DailyOverview, history: HistoryWindow | null, range: DateRange) => ListItem[];
@@ -96,6 +105,35 @@ type Word = {
   empty?: string;
   opensTraining?: boolean;
 };
+
+/**
+ * Whether the day holds any food at all.
+ *
+ * Reading the macros as well as the meals rather than the meals alone: a macro
+ * can arrive from somewhere the meal list does not show, and a word that called
+ * a real gram silence would be worse than one that draws a dash too rarely.
+ */
+function loggedAnything(overview: DailyOverview): boolean {
+  const macros = overview.macros;
+  return (overview.meals?.length ?? 0) > 0 || macros.protein + macros.carbs + macros.fat > 0;
+}
+
+/**
+ * Whether anything from the health source reached this day.
+ *
+ * The web has no local sensor: steps and active calories arrive from the
+ * server, having arrived there from a phone. Both at exactly nought means
+ * nothing has been synced, far more often than it means a person lay still for
+ * a whole day — and "0 av 10 000" at seven in the morning reads as a failed
+ * goal rather than as a day that has not started.
+ *
+ * A genuinely motionless day draws a dash too. That is the error worth having:
+ * the surface says nothing rather than something wrong about the reader.
+ */
+function healthSynced(overview: DailyOverview): boolean {
+  const health = overview.health;
+  return health.steps > 0 || health.active_calories > 0;
+}
 
 function goalValue(value: number, goal: number | null, unit: string): string {
   if (!goal || goal <= 0) return `${swedishNumber(value)} ${unit}`;
@@ -127,6 +165,11 @@ function sleepBand(value: number | null, min: number | null, max: number | null)
   if (min != null && value < min) return "under ditt fönster";
   if (max != null && value > max) return "över ditt fönster";
   return "i ditt fönster";
+}
+
+function weekCount(history: HistoryWindow, range: DateRange): number {
+  return (history.training_runs ?? [])
+    .filter((run) => withinRange(localDay(run.completed_at), range)).length;
 }
 
 function localDay(instant: string): string {
@@ -165,6 +208,7 @@ export const WORDS: Record<string, Word> = {
     group: "Näring",
     source: "day",
     unit: "g",
+    measured: loggedAnything,
     value: (overview) => goalValue(overview.macros.protein, overview.macros.protein_goal, "g"),
     progress: (overview) => goalProgress(overview.macros.protein, overview.macros.protein_goal),
   },
@@ -173,6 +217,7 @@ export const WORDS: Record<string, Word> = {
     group: "Näring",
     source: "day",
     unit: "g",
+    measured: loggedAnything,
     value: (overview) => goalValue(overview.macros.carbs, overview.macros.carbs_goal, "g"),
     progress: (overview) => goalProgress(overview.macros.carbs, overview.macros.carbs_goal),
   },
@@ -181,6 +226,7 @@ export const WORDS: Record<string, Word> = {
     group: "Näring",
     source: "day",
     unit: "g",
+    measured: loggedAnything,
     value: (overview) => goalValue(overview.macros.fat, overview.macros.fat_goal, "g"),
     progress: (overview) => goalProgress(overview.macros.fat, overview.macros.fat_goal),
   },
@@ -202,6 +248,7 @@ export const WORDS: Record<string, Word> = {
     title: "Steg",
     group: "Hälsa",
     source: "day",
+    measured: healthSynced,
     value: (overview) => {
       const health = overview.health;
       if (health.step_goal <= 0) return swedishNumber(health.steps);
@@ -213,6 +260,7 @@ export const WORDS: Record<string, Word> = {
     title: "Aktiva kalorier",
     group: "Hälsa",
     source: "day",
+    measured: healthSynced,
     value: (overview) => `${swedishNumber(overview.health.active_calories)} kcal`,
   },
   "health.weight": {
@@ -269,10 +317,10 @@ export const WORDS: Record<string, Word> = {
     group: "Träning",
     source: "window",
     empty: "Inga pass den här veckan.",
+    measured: (_overview, history, range) => !!history && !!range && weekCount(history, range) > 0,
     value: (_overview, history, range) => {
       if (!history || !range) return null;
-      const count = (history.training_runs ?? [])
-        .filter((run) => withinRange(localDay(run.completed_at), range)).length;
+      const count = weekCount(history, range);
       return count === 1 ? "1 pass" : `${count} pass`;
     },
   },

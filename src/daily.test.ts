@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { heroSentence, isoDate, ruleBasedSentence, swedishNumber, type DailyOverview } from "./daily";
+import {
+  heroSentence,
+  isoDate,
+  nothingMeasured,
+  ruleBasedSentence,
+  swedishNumber,
+  type DailyOverview,
+} from "./daily";
 
 /**
  * Swedish thousand separators are non-breaking spaces, which is correct
@@ -64,5 +71,40 @@ describe("isoDate", () => {
     const lateEvening = new Date(2026, 7, 21, 23, 30);
 
     expect(isoDate(lateEvening)).toBe("2026-08-21");
+  });
+});
+
+/**
+ * Inte "är det här ett nytt konto" — det kan ytan inte veta, och behöver inte
+ * veta. En dag utan något på sig läser likadant vare sig den är någons första
+ * eller en tisdag ingen rört, och vägarna in är desamma.
+ */
+describe("nothingMeasured", () => {
+  const emptyDay = (): DailyOverview => ({
+    ...day(),
+    health: { steps: 0, step_goal: 7000, active_calories: 0, sleep_minutes: null },
+    macros: { protein: 0, carbs: 0, fat: 0, protein_goal: 165, carbs_goal: null, fat_goal: null },
+    meals: [],
+  });
+
+  it("är sann när ingenting loggats eller mätts", () => {
+    expect(nothingMeasured(emptyDay())).toBe(true);
+  });
+
+  it("faller på ett enda tecken på liv", () => {
+    expect(nothingMeasured({ ...emptyDay(), health: { ...emptyDay().health, steps: 12 } })).toBe(false);
+    expect(nothingMeasured({ ...emptyDay(), health: { ...emptyDay().health, active_calories: 8 } })).toBe(false);
+    expect(nothingMeasured({ ...emptyDay(), health: { ...emptyDay().health, sleep_minutes: 430 } })).toBe(false);
+    expect(nothingMeasured({ ...emptyDay(), macros: { ...emptyDay().macros, protein: 1 } })).toBe(false);
+    expect(nothingMeasured({
+      ...emptyDay(),
+      meals: [{ id: "m1", description: "Gröt", calories: 320, logged_at: "2026-08-21T06:40:00Z" }],
+    })).toBe(false);
+  });
+
+  /** Ett mål är ingen mätning. Att ha satt 165 g protein säger ingenting om
+   *  vad som ätits. */
+  it("räknar inte ett satt mål som en mätning", () => {
+    expect(nothingMeasured(emptyDay())).toBe(true);
   });
 });

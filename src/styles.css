@@ -309,6 +309,36 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .progress { height: 2px; margin-bottom: 12px; border-radius: 999px; background: var(--blue-soft); }
 .progress span { display: block; height: 100%; border-radius: 999px; background: var(--blue); }
 
+/* Nothing measured. The scale keeps its height so the row does not move when
+   the first reading arrives, and it is drawn as an outline rather than as a
+   bar at nought — a bar at nought is a reading, and there is none. */
+.progress.empty {
+  background: none;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+  height: 3px;
+}
+/* Never a nought and never blank. Quieter than a number, because it is not
+   one — but present, so the word stays readable as something still to come. */
+.metric-empty { color: var(--muted); }
+
+/* The day is here; it is just not from this minute. A quiet line, not a
+   warning: nothing has gone wrong that the reader has to act on. */
+.stale-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0 0;
+  font-size: 13px;
+}
+.stale-line button { margin-left: auto; }
+
+/* Nothing measured yet. Offers, never a form — the conversation is the editor,
+   so the way in is to say something. */
+.ways-in { display: grid; gap: 6px; }
+.ways-in p { margin: 0; }
+.ways-in-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 8px; }
+
 /* The three richer forms. Same ink, same rule between rows — a ring and a row
    belong to one surface, so nothing here introduces a second visual language. */
 
@@ -333,6 +363,13 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }
+/* The ring with nothing in it: the same circle, dashed, no fill and no
+   percentage. */
+.ring-track.empty {
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-dasharray: 3 5;
+}
 .ring-label {
   fill: var(--ink);
   font-size: 15px;
@@ -347,6 +384,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .chart-widget { padding: 14px 0; }
 .chart-heading, .list-heading { display: flex; align-items: baseline; gap: 12px; }
 .chart-range { margin-left: auto; font-size: 12px; color: var(--muted); }
+/* An empty window: the scale without the line. Says where the answer would be
+   drawn, and says nothing about what it would show. */
+.chart-baseline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
 .chart-figures { display: flex; align-items: baseline; gap: 10px; margin-top: 4px; }
 .chart-figures strong { font-size: 21px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .chart-change { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }

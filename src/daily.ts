@@ -83,6 +83,23 @@ export function ruleBasedSentence(overview: DailyOverview, showsTraining: boolea
   return `${clauses.join(" och ")}.`;
 }
 
+/**
+ * Whether the day holds a single measurement.
+ *
+ * Not "is this a new account" — the surface cannot know that, and does not need
+ * to. A day with nothing on it reads the same whether it is somebody's first or
+ * a Tuesday they have not touched yet, and the ways in are the same in both.
+ */
+export function nothingMeasured(overview: DailyOverview): boolean {
+  const macros = overview.macros;
+  const health = overview.health;
+  return (overview.meals?.length ?? 0) === 0
+    && macros.protein + macros.carbs + macros.fat === 0
+    && health.steps === 0
+    && health.active_calories === 0
+    && (health.sleep_minutes ?? 0) === 0;
+}
+
 /** The coach's sentence when it wrote one, the rule's when it did not. */
 export function heroSentence(overview: DailyOverview, showsTraining: boolean): string {
   const headline = overview.headline?.trim();
