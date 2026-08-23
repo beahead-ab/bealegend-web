@@ -310,6 +310,60 @@ describe("de målriktade formerna", () => {
   });
 });
 
+/**
+ * Tystnad och frånvaro ser likadana ut i en nolla, och bara ordet vet vilken
+ * det tittar på. `measured` skiljer dem åt: falskt ritar den tomma formen,
+ * medan `value` som svarar null betyder att ordet inte går att rita alls.
+ */
+describe("vad som räknas som mätt", () => {
+  function withMacros(macros: Partial<DailyOverview["macros"]>, meals: DailyOverview["meals"] = []) {
+    const base = overviewWith({});
+    return { ...base, macros: { ...base.macros, ...macros }, meals };
+  }
+
+  it("kallar inte en dag utan mat för noll gram", () => {
+    expect(WORDS["daily.protein"].measured?.(withMacros({ protein_goal: 150 }))).toBe(false);
+    expect(WORDS["daily.carbs"].measured?.(withMacros({}))).toBe(false);
+    expect(WORDS["daily.fat"].measured?.(withMacros({}))).toBe(false);
+  });
+
+  it("räknar ett loggat gram som mätt även utan måltid i listan", () => {
+    expect(WORDS["daily.protein"].measured?.(withMacros({ protein: 32 }))).toBe(true);
+  });
+
+  it("räknar en loggad måltid som mätt", () => {
+    const meal = { id: "m1", description: "Gröt", calories: 320, logged_at: "2026-08-22T06:40:00Z" };
+    expect(WORDS["daily.protein"].measured?.(withMacros({}, [meal]))).toBe(true);
+  });
+
+  /** Webben har ingen egen sensor. Båda på exakt noll betyder att ingenting
+   *  synkats, långt oftare än att någon legat still ett helt dygn. */
+  it("kallar inte en osynkad dag för noll steg", () => {
+    expect(WORDS["daily.steps"].measured?.(overviewWith({ steps: 0, active_calories: 0 }))).toBe(false);
+    expect(WORDS["daily.activeEnergy"].measured?.(overviewWith({ steps: 0, active_calories: 0 }))).toBe(false);
+  });
+
+  it("räknar dagen som mätt så snart något av talen rört sig", () => {
+    expect(WORDS["daily.steps"].measured?.(overviewWith({ steps: 12 }))).toBe(true);
+    expect(WORDS["daily.steps"].measured?.(overviewWith({ active_calories: 40 }))).toBe(true);
+  });
+
+  /** Fönstret hämtades och innehöll inga pass. Det är ordets tomma tillstånd,
+   *  och meningen för det var redan skriven. */
+  it("ritar veckans pass tomt när fönstret inte höll något", () => {
+    const range = rangeFor("this-week", new Date(2026, 7, 22));
+    const empty: HistoryWindow = { days: [], training_runs: [] };
+    const word = WORDS["training.weekVolume"];
+
+    expect(word.measured?.(overviewWith({}), empty, range)).toBe(false);
+    expect(word.value?.(overviewWith({}), empty, range)).toBe("0 pass");
+  });
+
+  it("låter ord utan omdöme räknas som mätta", () => {
+    expect(WORDS["daily.energyBudget"].measured).toBe(undefined);
+  });
+});
+
 describe("visibleWidgets", () => {
   const many = (count: number) =>
     ["daily.protein", "daily.carbs", "daily.fat", "daily.steps", "daily.activeEnergy",

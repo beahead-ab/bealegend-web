@@ -6,24 +6,38 @@ import { hoursAndMinutes, type CountdownStatus, type ListItem, type RangeReading
  *  rather than showing them all. */
 const MAX_LIST_ROWS = 5;
 
-export function MetricRow({ label, value, progress, onClick }: {
+/** Not a zero and not a blank: the em dash is the written form of "nothing
+ *  measured", and it keeps the word on the surface so the reader learns what
+ *  is missing rather than that it does not exist. */
+export const NOTHING_MEASURED = "—";
+
+export function MetricRow({ label, value, progress, onClick, empty = false }: {
   label: string;
   value: string;
   progress?: number | null;
   onClick?: () => void;
+  /** Nothing has been measured for this word today. The row stays, the number
+   *  does not — a zero here would read as a reading rather than as silence. */
+  empty?: boolean;
 }) {
   const body = (
     <>
       <div className="metric-row">
         <span className="muted">{label}</span>
-        <strong>{value}</strong>
+        <strong className={empty ? "metric-empty" : undefined}>
+          {empty ? NOTHING_MEASURED : value}
+        </strong>
         {onClick && <span className="chevron"><ChevronIcon /></span>}
       </div>
-      {progress != null && (
-        <div className="progress" aria-hidden="true">
-          <span style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }} />
-        </div>
-      )}
+      {empty
+        // The scale, drawn as an outline. Its width is the same as the filled
+        // one, so a day that starts empty and fills in does not move.
+        ? <div className="progress empty" aria-hidden="true" />
+        : progress != null && (
+          <div className="progress" aria-hidden="true">
+            <span style={{ width: `${Math.min(Math.max(progress, 0), 1) * 100}%` }} />
+          </div>
+        )}
     </>
   );
 
@@ -71,12 +85,40 @@ const LAP_CIRCUMFERENCE = 2 * Math.PI * LAP_RADIUS;
  * Direction belongs to the word, not to the drawing. If it is ever wanted it
  * goes on the binding in the server's vocabulary, where it would reach iOS too.
  */
-export function Ring({ label, value, progress }: { label: string; value: string; progress: number }) {
+export function Ring({ label, value, progress, empty = false }: {
+  label: string;
+  value: string;
+  progress: number;
+  /** Nothing measured. The ring keeps its place as a dashed outline: no fill,
+   *  no percentage. Nought per cent is a result, and this is not one. */
+  empty?: boolean;
+}) {
   const filled = Math.min(Math.max(progress, 0), 1);
   const percent = Math.round(progress * 100);
   // A second lap at most: three times the goal and twice the goal should look
   // alike, because the number above already says which it was.
   const lap = Math.min(Math.max(progress - 1, 0), 1);
+
+  if (empty) {
+    return (
+      <div className="ring-widget">
+        <svg
+          viewBox={`0 0 ${RING_BOX} ${RING_BOX}`}
+          className="ring"
+          role="img"
+          aria-label={`${label}: inget mätt än`}
+        >
+          {/* The circle and nothing else. The dash belongs beside it, where the
+              word is — putting one here too would say the same thing twice. */}
+          <circle className="ring-track empty" cx={RING_CENTRE} cy={RING_CENTRE} r={RING_RADIUS} />
+        </svg>
+        <div className="ring-text">
+          <span className="muted">{label}</span>
+          <strong className="metric-empty">{NOTHING_MEASURED}</strong>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ring-widget">
@@ -190,9 +232,28 @@ export function LineChart({ label, series, unit, range, empty }: {
   empty: string;
 }) {
   if (series.length === 0) {
+    // A dashed scale with no line and no dot. The sentence stays underneath,
+    // because only the word knows what was missing — but the shape of the
+    // answer is drawn, so the reader sees a chart waiting rather than a chart
+    // that failed.
     return (
       <div className="chart-widget">
         <div className="chart-heading"><span className="muted">{label}</span><span className="chart-range">{range}</span></div>
+        <svg
+          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+          className="chart"
+          role="img"
+          aria-label={`${label}, ${range}: ${empty}`}
+        >
+          <line
+            className="chart-baseline"
+            x1={CHART_INSET}
+            x2={CHART_WIDTH - CHART_INSET}
+            y1={CHART_HEIGHT / 2}
+            y2={CHART_HEIGHT / 2}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
         <p className="chart-empty">{empty}</p>
       </div>
     );

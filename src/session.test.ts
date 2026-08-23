@@ -1,31 +1,66 @@
 import { describe, expect, it } from "vitest";
-import { ApiError } from "./api";
-import { signInMessage } from "./session";
+import { applyToCache } from "./session";
+import type { SignedInUser } from "./api";
 
 /**
- * Which failure the user is told about decides whether they go hunting for a
- * mistake they did not make.
+ * Regeln som håller isär två personer som delar en dator, prövad i alla fyra
+ * lägen en session kan hamna i. Att den bara finns på ett ställe är vad som
+ * gör det möjligt att pröva den alls.
  */
-describe("signInMessage", () => {
-  it("passes the server's own sentence through on a rejected sign-in", () => {
-    expect(signInMessage(new ApiError(401, "Fel e-post eller lösenord.", "invalid_credentials")))
-      .toBe("Fel e-post eller lösenord.");
+describe("vad som händer med offlinecachen när en session avgörs", () => {
+  function spy() {
+    const calls: string[] = [];
+    return {
+      calls,
+      cache: {
+        claim: (userId: string) => { calls.push(`claim:${userId}`); },
+        forget: () => { calls.push("forget"); },
+      },
+    };
+  }
+
+  it("tar över cachen för den som loggar in", () => {
+    const { calls, cache } = spy();
+
+    applyToCache({ status: "signedIn", user: { id: "user-casper" } }, cache);
+
+    expect(calls).toEqual(["claim:user-casper"]);
   });
 
-  it("has a sentence of its own when the server sends none", () => {
-    expect(signInMessage(new ApiError(401, "", "invalid_credentials")))
-      .toBe("Fel e-post eller lösenord.");
+  /** Kontobyte: samma anrop, annat id. Det är claim som städar. */
+  it("tar över cachen även när någon annan använt datorn", () => {
+    const { calls, cache } = spy();
+
+    applyToCache({ status: "signedIn", user: { id: "user-annan" } }, cache);
+
+    expect(calls).toEqual(["claim:user-annan"]);
   });
 
-  /** Telling someone their password is wrong when the network dropped is a lie. */
-  it("does not blame the password for a server failure", () => {
-    const message = signInMessage(new ApiError(503, "", "unavailable"));
+  /** En utgången session är en session som tagit slut. */
+  it("glömmer allt när sessionen gått ut", () => {
+    const { calls, cache } = spy();
 
-    expect(message).not.toContain("lösenord");
-    expect(message).toContain("Försök igen");
+    applyToCache({ status: "signedOut" }, cache);
+
+    expect(calls).toEqual(["forget"]);
   });
 
-  it("says something useful about an error that is not ours at all", () => {
-    expect(signInMessage(new TypeError("Failed to fetch"))).toContain("Försök igen");
+  /**
+   * Ingen identitet, inget minne. En session vi inte kan tillskriva någon får
+   * varken läsa eller skriva dagar — att falla stängt kostar en omhämtning.
+   */
+  it("glömmer allt när sessionen saknar identitet", () => {
+    const { calls, cache } = spy();
+
+    applyToCache({ status: "signedIn", user: undefined }, cache);
+    // Kontraktet säger att id alltid finns. Ett svar från nätet är inte
+    // typkontrollerat, och det är just det fallet skyddet finns för — därför
+    // konstrueras det här med våld.
+    applyToCache(
+      { status: "signedIn", user: { email: "casper@beahead.se" } as unknown as SignedInUser },
+      cache,
+    );
+
+    expect(calls).toEqual(["forget", "forget"]);
   });
 });

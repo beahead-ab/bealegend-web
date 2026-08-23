@@ -15,8 +15,17 @@ import {
   type DashboardSection,
   type DashboardWidget,
 } from "./dashboard";
-import { fetchOverview, heroSentence, type DailyOverview } from "./daily";
+import {
+  dayOnScreen,
+  fetchOverview,
+  heroSentence,
+  isoDate,
+  nothingMeasured,
+  type DailyOverview,
+} from "./daily";
 import { fetchTrainingHome, isFinished, type TrainingRun } from "./training";
+import { fetchedLabel, recallConfig, recallDay, rememberConfig, rememberDay } from "./lastKnown";
+import type { SignedInUser } from "./api";
 import { readRoute, routeSearch, sameRoute, type Route, type Surface } from "./route";
 import { BackIcon, ChevronIcon } from "./icons";
 import {
@@ -185,7 +194,11 @@ function AccountMenu({ name, runActive, onSignOut }: {
   );
 }
 
-export function TodayView({ onSignOut }: { onSignOut: () => void }) {
+export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: SignedInUser }) {
+  // Nothing is remembered for a session we cannot attribute. Failing closed
+  // costs a refetch; the alternative is one person's day in a store the next
+  // person could read.
+  const userId = user?.id;
   // Three surfaces, one at a time. The conversation lives above all of them,
   // so moving between them never ends it.
   const [route, go] = useRoute();
@@ -199,14 +212,30 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
   const [config, setConfig] = useState<DashboardConfig | null>(null);
   const [history, setHistory] = useState<HistoryWindow | null>(null);
   const [activeRun, setActiveRun] = useState<TrainingRun | null>(null);
+  const [hasSession, setHasSession] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * When the day on screen was fetched, or null while it is current. Set only
+   * when the server could not be reached and a remembered day was drawn
+   * instead — the surface must never look fresher than it is.
+   */
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
 
   // Only to know whether a pass is running. Saying "Dagens pass" while one is
   // in progress would be the surface's own small lie.
   useEffect(() => {
     let cancelled = false;
+    // Cleared first. "Pågår" and the pass shortcut belong to the day they were
+    // read for, and leaving them up while another day loads is the surface
+    // saying something true about yesterday as though it were about today.
+    setActiveRun(null);
+    setHasSession(false);
     fetchTrainingHome(date)
-      .then((home) => !cancelled && setActiveRun(home.active_run))
+      .then((home) => {
+        if (cancelled) return;
+        setActiveRun(home.active_run);
+        setHasSession(home.today_sessions.length > 0);
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [date]);
@@ -218,24 +247,61 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
+    const iso = isoDate(date);
     setError("");
+    // The day on screen goes before the new one is asked for. Keeping it would
+    // draw one date's numbers under another's heading for as long as the
+    // request takes — and for good, if it fails and nothing is cached.
+    setOverview(null);
+    setFetchedAt(null);
+    setExpanded(false);
     fetchOverview(date)
-      .then((result) => !cancelled && setOverview(result))
-      // The day already on screen is kept. Emptying the surface on a failed
-      // refresh throws away something correct in exchange for nothing.
-      .catch(() => !cancelled && setError("Dagen kunde inte hämtas just nu."));
+      .then((result) => {
+        if (cancelled) return;
+        setOverview(result);
+        setFetchedAt(null);
+        // Written only from a real answer, so what is replayed later was true
+        // when it was written.
+        if (userId) rememberDay(userId, iso, result);
+      })
+      // Never an empty page. The last day the server answered with is drawn
+      // instead, with the hour it was fetched — freshness is what a lost
+      // connection costs, not the surface. Only a day nobody has ever fetched
+      // falls through to the message.
+      .catch(() => {
+        if (cancelled) return;
+        // This date's own answer or none. A neighbouring day is not a worse
+        // version of this one — it is a different one.
+        const kept = userId ? recallDay(userId, iso) : null;
+        if (kept) {
+          setOverview(kept.overview);
+          setFetchedAt(kept.at);
+          return;
+        }
+        setError("Dagen kunde inte hämtas just nu.");
+      });
     return () => { cancelled = true; };
-  }, [date, attempt]);
+  }, [date, attempt, userId]);
 
   useEffect(() => {
     let cancelled = false;
-    // A dashboard that cannot be fetched costs personalisation, never the
-    // screen — the built-in surface below is what runs then.
+    // The remembered shape first, so an offline start draws the user's own
+    // surface rather than the built-in one. It is replaced the moment a real
+    // answer arrives; a dashboard that cannot be fetched costs personalisation,
+    // never the screen.
+    if (userId) {
+      const kept = recallConfig(userId);
+      if (kept) setConfig(kept);
+    }
     fetchDashboard()
-      .then((result) => !cancelled && setConfig(result))
+      .then((result) => {
+        if (cancelled) return;
+        setConfig(result);
+        if (userId) rememberConfig(userId, result);
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, []);
+  }, [userId]);
 
   // One request covers every window word on the surface, and a surface with
   // none pays for nothing.
@@ -246,6 +312,9 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
       return;
     }
     let cancelled = false;
+    // Same reason as the day: a window read for one date must not be drawn
+    // under another while the new one is on its way.
+    setHistory(null);
     fetchHistory(range)
       .then((result) => !cancelled && setHistory(result))
       .catch(() => undefined);
@@ -266,6 +335,16 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  /**
+   * The day, but only if it is this day.
+   *
+   * Every path above already clears on a date change, and this is what holds
+   * if one ever stops: a stored answer filed wrong, a response that lands after
+   * the user has paged on. The heading says which date this is, and nothing
+   * below it may describe another one.
+   */
+  const shownDay = dayOnScreen(overview, isoDate(date));
 
   // Six things, then a word. The configuration may hold eight; a home screen
   // that opens with all of them is the crowding §6 removed.
@@ -303,7 +382,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         move={(days) => setDate(addDays(date, days))}
         goToToday={() => setDate(new Date())}
         onSignOut={onSignOut}
-        name={overview?.user.first_name}
+        name={shownDay?.user.first_name}
         runActive={!!activeRun && !isFinished(activeRun)}
         atFuture={atFuture}
       />
@@ -315,12 +394,22 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
         </div>
       )}
 
-      {!overview && !error && <DaySkeleton />}
+      {/* Begins with what works, per the design target's copy rule: the day is
+          here, and it is from this morning. The retry sits at the end, where
+          it is an offer rather than an instruction. */}
+      {fetchedAt != null && (
+        <div className="stale-line" role="status">
+          <span className="muted">{fetchedLabel(fetchedAt)}</span>
+          <button className="quiet-button" onClick={() => setAttempt((n) => n + 1)}>Hämta igen</button>
+        </div>
+      )}
 
-      {overview && (
+      {!shownDay && !error && <DaySkeleton />}
+
+      {shownDay && (
         <>
           <div className="hero">
-            <p>{heroSentence(overview, showsTraining)}</p>
+            <p>{heroSentence(shownDay, showsTraining)}</p>
             <span className="hero-rule" aria-hidden="true" />
           </div>
 
@@ -331,7 +420,7 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
                   <Card
                     key={`${section.group}-${section.widgets[0].binding}`}
                     section={section}
-                    overview={overview}
+                    overview={shownDay}
                     history={history}
                     date={date}
                     countdowns={config?.countdowns ?? []}
@@ -353,16 +442,53 @@ export function TodayView({ onSignOut }: { onSignOut: () => void }) {
             )
             : (
               <BuiltInSurface
-                overview={overview}
+                overview={shownDay}
                 openTraining={() => setSurface("session")}
                 runningLabel={runningLabel}
               />
             )}
+
+          {!atFuture && nothingMeasured(shownDay) && (
+            <WaysIn
+              hasSession={hasSession}
+              openThread={() => setSurface("thread")}
+              openTraining={() => setSurface("session")}
+            />
+          )}
         </>
       )}
 
       <CoachFloor conversation={conversation} onOpenThread={() => setSurface("thread")} inThread={false} />
     </div>
+  );
+}
+
+/**
+ * A day with nothing measured on it — somebody's first, or a Tuesday nobody has
+ * touched yet. The forms above are already drawn empty; this says what to do
+ * about it, and offers only what this client can actually carry out.
+ *
+ * Nothing here is required, and nothing here is a form. The conversation is the
+ * editor, so the way in is to say something — and the pass is offered only on a
+ * day that has one, because a button that opens an empty pass is worse than no
+ * button.
+ */
+function WaysIn({ hasSession, openThread, openTraining }: {
+  hasSession: boolean;
+  openThread: () => void;
+  openTraining: () => void;
+}) {
+  return (
+    <section className="card ways-in">
+      <p>Ingenting mätt än i dag.</p>
+      <p className="muted">Berätta vad du ätit eller gjort, så för Legend in det.</p>
+      <div className="ways-in-actions">
+        <button className="pill" onClick={openThread}>Berätta för Legend</button>
+        {hasSession && (
+          <button className="quiet-button" onClick={openTraining}>Dagens pass</button>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -444,6 +570,11 @@ function drawWidget(
 
   if (needsWindow && !history) return null;
 
+  // Silence, not absence. A word that measured nothing keeps its place and
+  // draws its empty form; a word that cannot be drawn at all still returns
+  // null below and leaves no trace.
+  const measured = word.measured ? word.measured(overview, history, range) : true;
+
   switch (widget.presentation) {
     case "rangeBar": {
       const reading = word.range?.(overview);
@@ -464,7 +595,14 @@ function drawWidget(
     case "ring": {
       const progress = word.progress?.(overview);
       if (progress == null) return null;
-      return <Ring label={word.title} value={word.value?.(overview, history, range) ?? ""} progress={progress} />;
+      return (
+        <Ring
+          label={word.title}
+          value={word.value?.(overview, history, range) ?? ""}
+          progress={progress}
+          empty={!measured}
+        />
+      );
     }
     case "lineChart":
       return (
@@ -495,6 +633,7 @@ function drawWidget(
           label={word.title}
           value={value}
           progress={widget.presentation === "horizontalBudget" ? word.progress?.(overview) : null}
+          empty={!measured}
         />
       );
     }
@@ -513,7 +652,9 @@ function BuiltInSurface({ overview, openTraining, runningLabel }: {
   runningLabel: string;
 }) {
   const calories = WORDS["daily.energyBudget"].value?.(overview);
-  const protein = WORDS["daily.protein"].value?.(overview);
+  const proteinWord = WORDS["daily.protein"];
+  const protein = proteinWord.value?.(overview);
+  const proteinMeasured = proteinWord.measured?.(overview) ?? true;
 
   return (
     <>
@@ -526,7 +667,7 @@ function BuiltInSurface({ overview, openTraining, runningLabel }: {
             progress={WORDS["daily.energyBudget"].progress?.(overview)}
           />
         )}
-        {protein && <MetricRow label="Protein" value={protein} />}
+        {protein && <MetricRow label="Protein" value={protein} empty={!proteinMeasured} />}
       </section>
       <section className="card group-card">
         <h2>Träning</h2>

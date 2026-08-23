@@ -26,5 +26,7 @@ export function App() {
     );
   }
 
-  return <TodayView onSignOut={signOut} />;
+  // The account, passed down so the offline cache can be tied to it. Without
+  // an id nothing is remembered at all — see lastKnown.ts.
+  return <TodayView onSignOut={signOut} user={session.user} />;
 }
