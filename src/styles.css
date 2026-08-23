@@ -839,3 +839,78 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .field-hint { display: block; margin-top: 4px; font-size: 12px; }
 .set-gloss { font-style: normal; }
+
+/*
+ * Kvittoraden. »Varje ändring har ett kvitto med Ångra« — DESIGNBESLUT
+ * princip 6.
+ *
+ * Ingen ruta, ingen färg, ingen ikon: samma bläck som resten och en linje
+ * under. Kvittot är inte en avisering utan en anteckning om vad som redan
+ * hänt, och en gul ruta hade gjort en lugn mening till ett larm.
+ *
+ * Ångra ligger till höger, som "Hämta igen" på staleraden — samma plats för
+ * samma sorts erbjudande, så handen lär sig en gång.
+ */
+.receipt {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.receipt-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.receipt-summary { flex: 1 1 auto; min-width: 0; }
+.receipt-when { flex: none; font-size: 13px; }
+
+.receipt-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-left: auto;
+  flex: none;
+}
+
+.receipt-note { margin: 6px 0 0; font-size: 13px; }
+.receipt-more { margin-top: 6px; padding-left: 0; }
+
+.receipt-trail {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.receipt-trail li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.receipt-trail li span:first-child { flex: 1 1 auto; min-width: 0; }
+
+/* En ångrad rad står kvar och läses som överspelad. Genomstruken snarare än
+   bortplockad: historiken är det som gör Ångra till en läsning, och att dölja
+   raden hade tagit bort just det. */
+.receipt-trail li.undone span:first-child {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+/* Delade .quiet-button hovrar till rött, vilket den ärvt från platser där den
+   avslutar något. Här avslutas ingenting: Ångra är en väg tillbaka, och
+   "vad mer har ändrats" öppnar en lista. Rött som dom hör inte hemma på
+   någondera — fullare bläck säger samma sak utan att låta som en varning. */
+.receipt button:hover { color: var(--ink); }
+
+/* Träffytan växer på pekskärm, som resten av ytan. */
+@media (pointer: coarse) {
+  .receipt-row button,
+  .receipt-more { min-height: 44px; }
+}
