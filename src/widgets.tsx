@@ -367,15 +367,53 @@ export function RangeBar({ label, reading, hero = false }: {
         <span className="muted">{label}</span>
         <strong>{reading.text}</strong>
       </div>
+      {/*
+        Fem delar, och var och en säger något de andra inte kan.
+
+        Streckat under golvet och över taket: utanför riktvärdet, aldrig rött.
+        Rött hade varit en dom, och en natt på sex timmar är inte ett fel — den
+        ligger utanför ett fönster användaren själv satt.
+
+        Zonen emellan är fylld, och färgen kommer ur målet snarare än ur datan:
+        grön är inom mål i hela färggrammatiken, och blått är reserverat för
+        data. Att fylla zonen med blått hade sagt att målet var en mätning.
+
+        Målstrecken står vid varje gräns användaren faktiskt satt — det är där
+        målet går, och utan dem läses den fyllda zonen som en mjuk övergång i
+        stället för som två beslut. Ett fönster med bara en gräns får ett
+        streck, inte två uppdiktade.
+
+        Markören är bläck och 3 pt, målstrecken 2 pt. Skillnaden i tjocklek är
+        vad som gör att ögat läser mätningen först och gränsen sedan.
+      */}
       <div className={hasBand ? "range-track" : "range-track no-goal"} aria-hidden="true">
         {hasBand && (
-          <span
-            className="range-band"
-            style={{
-              left: `${clamp(place(reading.min ?? from))}%`,
-              width: `${clamp(place(reading.max ?? to) - place(reading.min ?? from))}%`,
-            }}
-          />
+          <>
+            <span
+              className="range-outside"
+              style={{ left: 0, width: `${clamp(place(reading.min ?? from))}%` }}
+            />
+            <span
+              className="range-outside"
+              style={{
+                left: `${clamp(place(reading.max ?? to))}%`,
+                right: 0,
+              }}
+            />
+            <span
+              className="range-band"
+              style={{
+                left: `${clamp(place(reading.min ?? from))}%`,
+                width: `${clamp(place(reading.max ?? to) - place(reading.min ?? from))}%`,
+              }}
+            />
+            {reading.min != null && (
+              <span className="range-goal" style={{ left: `${clamp(place(reading.min))}%` }} />
+            )}
+            {reading.max != null && (
+              <span className="range-goal" style={{ left: `${clamp(place(reading.max))}%` }} />
+            )}
+          </>
         )}
         {reading.value != null && (
           <span className="range-marker" style={{ left: `${clamp(place(reading.value))}%` }} />

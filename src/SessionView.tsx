@@ -10,7 +10,7 @@ import {
   modeReason,
   momentPrescription,
   phaseLabel,
-  restLabel,
+  restSpan,
   rpeWords,
   setLine,
   sharedRest,
@@ -153,7 +153,7 @@ function Moment({ moment, here, state }: {
                   <li key={set.index} className={current ? "current" : undefined}>
                     <span className="set-index">{set.index}</span>
                     <span className="set-line">
-                      {setLine(set, rest === null)}
+                      {setLine(set, rest === null, current)}
                       {/* On the set being done now, the RPE gets its meaning
                           spelled out. On the rest it would be four repetitions
                           of the same sentence. */}
@@ -188,7 +188,7 @@ function Moment({ moment, here, state }: {
               </button>
             </div>
           )}
-          {rest !== null && <p className="set-rest">{restLabel(rest)} mellan seten</p>}
+          {rest !== null && <p className="set-rest">{restSpan(rest)} mellan seten</p>}
           {moment.notes && <p className="moment-notes">{moment.notes}</p>}
         </div>
       )}
