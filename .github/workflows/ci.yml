@@ -23,3 +23,50 @@ jobs:
       # tsc -b runs inside build, so this is the type check as well.
       - run: npm run build
       - run: npm test
+
+  # Höjningen är en del av ändringen, aldrig något CI gör efteråt — se
+  # docs/VERSIONERING.md i backendrepot. Jobbet skriver inget nummer. Det
+  # vägrar bara låta en produktändring passera utan ett.
+  #
+  # Jämförelsen görs mot grenens bas, inte mot dess första commit. Två grenar
+  # som var för sig höjer samma nummer slås annars ihop utan konflikt, eftersom
+  # git ser identisk rad på båda sidor, och den andra funktionen hamnar i main
+  # utan höjning. Ombasad mot ett main som redan hunnit dit ser jobbet att
+  # numret inte rört sig.
+  version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Produktändringar har höjt VERSION
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          # Dokumentation, tester och byggkontroller ändrar inte produkten.
+          changed="$(git diff --name-only "$BASE" "$HEAD" \
+            | grep -vE '(^\.github/|\.md$|\.test\.tsx?$)' || true)"
+
+          if [ -z "$changed" ]; then
+            echo "Inget som rör produkten ändrades. Ingen höjning krävs."
+            exit 0
+          fi
+
+          before="$(git show "$BASE:VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]' || true)"
+          after="$(head -n 1 VERSION | tr -d '[:space:]')"
+
+          if [ "$before" = "$after" ]; then
+            echo "Produktfiler ändrades men VERSION står kvar på $after:" >&2
+            echo "$changed" >&2
+            echo "" >&2
+            echo "Höj patch, minor eller major efter vad ändringen gör för den" >&2
+            echo "som använder webben, i den här grenen. Står basen redan på" >&2
+            echo "$after har någon annan gren hunnit före — höj ett steg till." >&2
+            exit 1
+          fi
+
+          echo "VERSION: ${before:-saknades} -> $after"
