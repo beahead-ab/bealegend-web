@@ -18,6 +18,10 @@
   --error-line: #e9b5af;
   --error-canvas: #fff2f0;
   --error-ink: #8d271f;
+  /* Målets färg, skild från datans blå. Zonen är ett beslut användaren fattat,
+     inte något som mätts. */
+  --zone: rgba(31, 122, 77, 0.14);
+  --zone-line: rgba(31, 122, 77, 0.55);
   --ok-line: #bfe3ce;
   --ok-canvas: #f2fbf6;
   --ok-ink: #1f7a4d;
@@ -53,6 +57,10 @@
     --error-line: #5c2f29;
     --error-canvas: #251715;
     --error-ink: #ffb4aa;
+    /* Grönt på nästan svart bär inte i samma mättnad — zonen lyfts, som blått
+       gör i det här temat, annars försvinner den mot bakgrunden. */
+    --zone: rgba(134, 217, 169, 0.16);
+    --zone-line: rgba(134, 217, 169, 0.60);
     --ok-line: #27503c;
     --ok-canvas: #13241c;
     --ok-ink: #86d9a9;
@@ -786,7 +794,6 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   height: 6px;
   margin: 10px 0 8px;
   border-radius: 999px;
-  background: var(--blue-faint);
 }
 /* No goal set: a dashed scale that says the shape of the answer without
    inventing one. A solid band here would state a window the user never chose. */
@@ -795,13 +802,41 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   border-top: 1px dashed var(--line);
   border-bottom: 1px dashed var(--line);
 }
+/* Utanför riktvärdet: streckat, aldrig rött. Rött vore en dom, och en natt
+   utanför ett fönster användaren själv satt är inte ett fel. */
+.range-outside {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+}
+
+/* Rekommendationszonen. Färgen kommer ur målet, inte ur datan: grön är inom
+   mål i hela färggrammatiken, och blått är reserverat för mätvärden. Att fylla
+   zonen med blått hade sagt att målet var en mätning. */
 .range-band {
   position: absolute;
   top: 0;
   bottom: 0;
   border-radius: 999px;
-  background: var(--blue-soft);
+  background: var(--zone);
 }
+
+/* Målstrecket: 2 pt, vid varje gräns användaren faktiskt satt. Utan dem läses
+   zonen som en mjuk övergång i stället för som två beslut. */
+.range-goal {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  background: var(--zone-line);
+}
+
+/* Mätvärdet. Bläck, inte blått — blått är data i själva grafen, och en markör
+   som konkurrerar med zonen om samma färg gör båda svårare att läsa. 3 pt mot
+   målstreckets 2: ögat läser mätningen först, gränsen sedan. */
 .range-marker {
   position: absolute;
   top: -3px;
@@ -809,7 +844,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   height: 12px;
   margin-left: -1.5px;
   border-radius: 999px;
-  background: var(--blue);
+  background: var(--ink);
 }
 .range-caption { font-size: 13px; margin: 0; }
 

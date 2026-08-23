@@ -147,7 +147,16 @@ describe("setLine", () => {
 
 describe("sharedRest", () => {
   it("lifts out a rest every set agrees on", () => {
-    expect(sharedRest([set(), set({ index: 2 }), set({ index: 3 })])).toBe(90);
+    expect(sharedRest([set(), set({ index: 2 }), set({ index: 3 })])?.rest_seconds).toBe(90);
+  });
+
+  /** Samma golv men olika tak är inte samma vila. Att lyfta ut den hade dolt
+   *  just skillnaden — vilket är precis vad utlyftningen finns för att undvika. */
+  it("lyfter inte ut en vila där bara golvet stämmer", () => {
+    expect(sharedRest([
+      set({ rest_seconds_max: 120 }),
+      set({ index: 2, rest_seconds_max: 180 }),
+    ])).toBeNull();
   });
 
   /** Then it belongs on each line after all — one differing set is exactly the
@@ -163,6 +172,50 @@ describe("sharedRest", () => {
 
   it("drops the rest from the line when it is said once instead", () => {
     expect(setLine(set({ suggested_weight_kg: 80 }), false)).toBe("8 reps · 80 kg");
+  });
+});
+
+describe("ordinationsspann", () => {
+  it("skriver RPE som ett spann när taket finns", () => {
+    expect(setLine(set({ target_rpe: 7, target_rpe_max: 8, rest_seconds: 0 })))
+      .toBe("8 reps · RPE 7–8");
+  });
+
+  it("skriver vilan som ett spann i sekunder", () => {
+    expect(setLine(set({ rest_seconds: 90, rest_seconds_max: 120 })))
+      .toBe("8 reps · 90–120 s vila");
+  });
+
+  it("skriver andelen av 1RM, som spann och som punkt", () => {
+    expect(setLine(set({ percent_1rm: 75, percent_1rm_max: 80, rest_seconds: 0 })))
+      .toBe("8 reps · 75–80 % av 1RM");
+    expect(setLine(set({ percent_1rm: 75, rest_seconds: 0 })))
+      .toBe("8 reps · 75 % av 1RM");
+  });
+
+  it("skriver RIR som spann när RPE saknas", () => {
+    expect(setLine(set({ target_rir: 1, target_rir_max: 3, rest_seconds: 0 })))
+      .toBe("8 reps · 1–3 RIR");
+  });
+
+  /** Ett tak som inte säger något nytt är en punkt. »RPE 8–8« hade fått en
+   *  ordination att se osäker ut utan att vara det. */
+  it("ritar inget spann när taket är lika med golvet", () => {
+    expect(setLine(set({ target_rpe: 8, target_rpe_max: 8, rest_seconds: 0 })))
+      .toBe("8 reps · RPE 8");
+  });
+
+  /** Mitt i ett set behöver man ett tal att gå på, inte ett fönster att välja
+   *  i. Golvet är det ordinationen alltid garanterar. */
+  it("kollapsar till golvet på setet som körs", () => {
+    const s = set({ target_rpe: 7, target_rpe_max: 8, percent_1rm: 75, percent_1rm_max: 80,
+      rest_seconds: 90, rest_seconds_max: 120 });
+    expect(setLine(s, true, true)).toBe("8 reps · 75 % av 1RM · RPE 7 · 1 min 30 s vila");
+  });
+
+  it("en ordination utan spann ser ut precis som förut", () => {
+    expect(setLine(set({ suggested_weight_kg: 82.5, target_rpe: 8 })))
+      .toBe("8 reps · 82,5 kg · RPE 8 · 1 min 30 s vila");
   });
 });
 

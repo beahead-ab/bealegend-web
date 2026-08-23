@@ -12,6 +12,20 @@ export type PrescribedSet = {
   target_rir: number | null;
   suggested_weight_kg: number | null;
   notes: string;
+  /**
+   * Taken från ordinationens spann. Det befintliga fältet ovan är golvet,
+   * `_max` är taket, och null betyder att ordinationen är en punkt.
+   *
+   * Coachen skriver sällan ett tal. »RPE 7–8« och »vila 90–120 s« är vad som
+   * står i programmet, och att rita golvet ensamt gjorde ordinationen
+   * strängare än den var menad.
+   */
+  rest_seconds_max?: number | null;
+  target_rpe_max?: number | null;
+  target_rir_max?: number | null;
+  /** Andel av 1RM. Servern räknar ut den ur load_rule; klienten läser bara. */
+  percent_1rm?: number | null;
+  percent_1rm_max?: number | null;
 };
 
 export type TrainingMoment = {
@@ -251,20 +265,67 @@ export function rpeLine(rpe: number): string {
   return `RPE ${rpe.toLocaleString("sv-SE")} · ${rpeWords(rpe)}`;
 }
 
-export function setLine(set: PrescribedSet, showRest = true): string {
+const number = (value: number) => value.toLocaleString("sv-SE");
+
+/**
+ * Ett spann, eller ett tal.
+ *
+ * Halvt streck (–), inte bindestreck: »7–8« är ett intervall, »7-8« läses som
+ * ett avbrott. Taket ritas bara när det säger något nytt — ett spann där golv
+ * och tak är lika är en punkt, och att skriva »RPE 8–8« hade fått en
+ * ordination att se osäker ut utan att vara det.
+ */
+export function span(
+  floor: number | null,
+  ceiling: number | null | undefined,
+  format: (value: number) => string = number,
+): string | null {
+  if (floor == null) return null;
+  if (ceiling == null || ceiling <= floor) return format(floor);
+  return `${format(floor)}–${format(ceiling)}`;
+}
+
+/**
+ * Ordinationen som en rad.
+ *
+ * [executing] är setet som körs just nu. Då kollapsar spannen till sitt golv:
+ * mitt i ett set behöver man ett tal att gå på, inte ett fönster att välja i,
+ * och golvet är det ordinationen alltid garanterar. Fönstret står kvar på
+ * raderna omkring, där det är information snarare än ett val att fatta.
+ */
+export function setLine(set: PrescribedSet, showRest = true, executing = false): string {
+  const to = <T,>(ceiling: T) => (executing ? null : ceiling);
   const parts: string[] = [];
   const each = measure(set.repetitions, set.duration_seconds, set.distance_meters);
   if (each) parts.push(each);
   if (set.suggested_weight_kg != null) {
-    parts.push(`${set.suggested_weight_kg.toLocaleString("sv-SE")} kg`);
+    parts.push(`${number(set.suggested_weight_kg)} kg`);
   }
-  if (set.target_rpe != null) parts.push(`RPE ${set.target_rpe.toLocaleString("sv-SE")}`);
-  else if (set.target_rir != null) parts.push(`${set.target_rir} RIR`);
+  // Andelen av 1RM står efter vikten och före ansträngningen: den säger vad
+  // vikten är, inte hur det ska kännas.
+  const percent = span(set.percent_1rm ?? null, to(set.percent_1rm_max));
+  if (percent) parts.push(`${percent} % av 1RM`);
+  const rpe = span(set.target_rpe ?? null, to(set.target_rpe_max));
+  if (rpe) parts.push(`RPE ${rpe}`);
+  else {
+    const rir = span(set.target_rir ?? null, to(set.target_rir_max));
+    if (rir) parts.push(`${rir} RIR`);
+  }
   if (showRest) {
-    const rest = restLabel(set.rest_seconds);
+    const rest = restSpan(set, executing);
     if (rest) parts.push(rest);
   }
   return parts.join(" · ");
+}
+
+/** »90–120 s vila«, eller »1 min 30 s vila« när ordinationen är en punkt. */
+export function restSpan(set: PrescribedSet, executing = false): string | null {
+  if (set.rest_seconds <= 0) return null;
+  const ceiling = executing ? null : set.rest_seconds_max;
+  if (ceiling == null || ceiling <= set.rest_seconds) return restLabel(set.rest_seconds);
+  // Sekunder rakt av i ett spann: "1 min 30 s–2 min" är två format i samma
+  // andetag och läses långsammare än talen det bär.
+  return `${set.rest_seconds}–${ceiling} s vila`;
 }
 
 /**
@@ -273,9 +334,14 @@ export function setLine(set: PrescribedSet, showRest = true): string {
  * so the shared rest is lifted out and said once. Null when the sets disagree,
  * because then it belongs on each line after all.
  */
-export function sharedRest(sets: PrescribedSet[]): number | null {
+export function sharedRest(sets: PrescribedSet[]): PrescribedSet | null {
   if (sets.length === 0) return null;
-  const first = sets[0].rest_seconds;
-  if (first <= 0) return null;
-  return sets.every((set) => set.rest_seconds === first) ? first : null;
+  const first = sets[0];
+  if (first.rest_seconds <= 0) return null;
+  // Både golv och tak måste stämma. Fyra set med samma golv men olika tak har
+  // inte samma vila, och att lyfta ut den hade dolt just skillnaden.
+  const same = sets.every((set) =>
+    set.rest_seconds === first.rest_seconds
+    && (set.rest_seconds_max ?? null) === (first.rest_seconds_max ?? null));
+  return same ? first : null;
 }
