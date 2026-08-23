@@ -1,5 +1,5 @@
 import { request } from "./api";
-import { swedishNumber, type DailyOverview } from "./daily";
+import { healthMeasured, swedishNumber, type DailyOverview } from "./daily";
 import { withinRange, type DateRange, type HistoryWindow } from "./history";
 
 export type DashboardWidget = {
@@ -119,21 +119,18 @@ function loggedAnything(overview: DailyOverview): boolean {
 }
 
 /**
- * Whether anything from the health source reached this day.
+ * Om något från hälsokällan nått den här dagen.
  *
- * The web has no local sensor: steps and active calories arrive from the
- * server, having arrived there from a phone. Both at exactly nought means
- * nothing has been synced, far more often than it means a person lay still for
- * a whole day — and "0 av 10 000" at seven in the morning reads as a failed
- * goal rather than as a day that has not started.
+ * Webben har ingen egen sensor: steg och aktiva kalorier kommer från servern,
+ * dit de kommit från en telefon. Frågan »har något mätts?« kan därför bara
+ * servern svara på, och sedan #70 gör den det — `healthMeasured` läser
+ * `health.measured_at` och gissar bara när fältet saknas.
  *
- * A genuinely motionless day draws a dash too. That is the error worth having:
- * the surface says nothing rather than something wrong about the reader.
+ * Det gamla felet var värt att ha så länge det inte gick att undvika: en dag
+ * någon faktiskt legat still ritades som osynkad, för att alternativet var att
+ * skriva »0 av 10 000« klockan sju på morgonen. Nu behöver ingendera väljas.
  */
-function healthSynced(overview: DailyOverview): boolean {
-  const health = overview.health;
-  return health.steps > 0 || health.active_calories > 0;
-}
+const healthSynced = healthMeasured;
 
 function goalValue(value: number, goal: number | null, unit: string): string {
   if (!goal || goal <= 0) return `${swedishNumber(value)} ${unit}`;

@@ -3,6 +3,7 @@ import {
   dayOnScreen,
   heroSentence,
   isoDate,
+  healthMeasured,
   nothingMeasured,
   ruleBasedSentence,
   swedishNumber,
@@ -80,13 +81,14 @@ describe("isoDate", () => {
  * veta. En dag utan något på sig läser likadant vare sig den är någons första
  * eller en tisdag ingen rört, och vägarna in är desamma.
  */
+const emptyDay = (): DailyOverview => ({
+  ...day(),
+  health: { steps: 0, step_goal: 7000, active_calories: 0, sleep_minutes: null },
+  macros: { protein: 0, carbs: 0, fat: 0, protein_goal: 165, carbs_goal: null, fat_goal: null },
+  meals: [],
+});
+
 describe("nothingMeasured", () => {
-  const emptyDay = (): DailyOverview => ({
-    ...day(),
-    health: { steps: 0, step_goal: 7000, active_calories: 0, sleep_minutes: null },
-    macros: { protein: 0, carbs: 0, fat: 0, protein_goal: 165, carbs_goal: null, fat_goal: null },
-    meals: [],
-  });
 
   it("är sann när ingenting loggats eller mätts", () => {
     expect(nothingMeasured(emptyDay())).toBe(true);
@@ -126,5 +128,41 @@ describe("dayOnScreen", () => {
 
   it("ritar ingenting när det inte finns någon dag", () => {
     expect(dayOnScreen(null, "2026-08-21")).toBe(null);
+  });
+});
+
+describe("healthMeasured", () => {
+  /** Den skillnad hela kravet handlar om. Före #70 gick den inte att se. */
+  it("en mätt dag med noll steg är mätt", () => {
+    const day = { ...emptyDay(), health: { ...emptyDay().health, measured_at: "2026-08-23T09:00:00Z" } };
+    expect(healthMeasured(day)).toBe(true);
+    expect(nothingMeasured(day)).toBe(false);
+  });
+
+  it("ett konto där ingenting mätts säger det", () => {
+    const day = { ...emptyDay(), health: { ...emptyDay().health, measured_at: null } };
+    expect(healthMeasured(day)).toBe(false);
+    expect(nothingMeasured(day)).toBe(true);
+  });
+
+  /**
+   * `undefined` är inte `null`. Ett svar utan fältet kommer från en äldre
+   * server eller ur den lokala cachen, och att läsa det som "ingenting mätt"
+   * hade fått en sparad dag att rita streck där den igår ritade tal.
+   */
+  it("faller tillbaka på nollheuristiken när fältet saknas", () => {
+    const cached = emptyDay();
+    expect(cached.health.measured_at).toBeUndefined();
+    expect(healthMeasured(cached)).toBe(false);
+    expect(healthMeasured({ ...cached, health: { ...cached.health, steps: 4_331 } })).toBe(true);
+    expect(healthMeasured({ ...cached, health: { ...cached.health, sleep_minutes: 420 } })).toBe(true);
+  });
+
+  /** Servern vinner över talen, åt båda håll. */
+  it("serverns svar väger tyngre än talen", () => {
+    const day = emptyDay();
+    expect(healthMeasured({
+      ...day, health: { ...day.health, steps: 4_331, measured_at: null },
+    })).toBe(false);
   });
 });

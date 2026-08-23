@@ -16,6 +16,16 @@ export type DailyOverview = {
     steps: number;
     step_goal: number;
     active_calories: number;
+    /**
+     * När hälsodata senast nådde dagen. Null betyder att ingenting mätts —
+     * inte att allt är noll.
+     *
+     * Frånvarande i svar från en server byggd före fältet, och i en dag som
+     * legat i den lokala cachen sedan dess. Läs det aldrig som null utan att
+     * skilja de två åt: `undefined` är »vet inte«, `null` är »vet, och svaret
+     * är ingenting«.
+     */
+    measured_at?: string | null;
     /** Null, never zero: a night nobody measured is not a night without sleep. */
     sleep_minutes?: number | null;
     sleep_goal_min_minutes?: number | null;
@@ -104,12 +114,31 @@ export function dayOnScreen(overview: DailyOverview | null, iso: string): DailyO
  */
 export function nothingMeasured(overview: DailyOverview): boolean {
   const macros = overview.macros;
-  const health = overview.health;
   return (overview.meals?.length ?? 0) === 0
     && macros.protein + macros.carbs + macros.fat === 0
-    && health.steps === 0
-    && health.active_calories === 0
-    && (health.sleep_minutes ?? 0) === 0;
+    && !healthMeasured(overview);
+}
+
+/**
+ * Om hälsodata nått den här dagen.
+ *
+ * Servern svarar på frågan sedan `daily-overview.v1` fick `health.measured_at`
+ * (backend #70). Före det gissade den här filen: två nollor fick betyda
+ * osynkat, vilket var rätt oftare än det var fel men aldrig sant — en dag
+ * någon faktiskt legat still ritades som en dag utan mätning.
+ *
+ * Gissningen finns kvar som reserv, och det är avsiktligt. Ett svar utan
+ * fältet kommer antingen från en äldre server eller ur den lokala cachen, och
+ * att läsa `undefined` som »ingenting mätt« hade fått en sparad dag att rita
+ * streck där den igår ritade tal. `undefined` är »vet inte«; `null` är »vet,
+ * och svaret är ingenting«.
+ */
+export function healthMeasured(overview: DailyOverview): boolean {
+  const health = overview.health;
+  if (health.measured_at !== undefined) return health.measured_at !== null;
+  return health.steps > 0
+    || health.active_calories > 0
+    || (health.sleep_minutes ?? 0) > 0;
 }
 
 /** The coach's sentence when it wrote one, the rule's when it did not. */
