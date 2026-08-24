@@ -1,5 +1,12 @@
 # Instruktioner för arbete i användarwebben
 
+## Arbetssättet först
+
+[`ARBETSSATT_CLAUDE.md`](ARBETSSATT_CLAUDE.md) beskriver hur vi arbetar
+tillsammans: nivån på svaren, vad du beslutar själv, skillnaden mellan kört och
+läst, och att oåterkalleliga git-operationer alltid frågar först. **Läs den
+före allt annat.**
+
 ## Versionshöjning ingår i varje uppdrag
 
 `VERSION` i repots rot är den enda auktoritativa källan till webbens
@@ -21,7 +28,7 @@ En intern omskrivning som ingen utanför märker är patch, hur stor den än är
 rätt.** Rör ändringen inte produkten alls — enbart dokumentation, enbart tester
 — säg det uttryckligen i stället för att höja utan skäl.
 
-De tre produkterna (backend, admin, webb) versioneras oberoende. Ändras bara
+De fyra produkterna (backend, admin, webb, hemsidan) versioneras oberoende. Ändras bara
 webben höjs bara den här filen.
 
 `package.json` bär också ett `version`-fält. Det är en **kopia**, inte källan,
