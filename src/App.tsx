@@ -14,6 +14,8 @@ function previewDay(): DailyOverview {
       goal_min: 1_800,
       goal_max: 2_200,
       consumed: 1_398,
+      consumed_min: 1_320,
+      consumed_max: 1_490,
       remaining: 602,
       is_over: false,
     },
@@ -27,10 +29,19 @@ function previewDay(): DailyOverview {
       fat_goal: 62,
     },
     meals: [
-      { id: "preview-1", description: "Frukost", calories: 420, logged_at: `${isoDate(new Date())}T06:30:00+02:00` },
-      { id: "preview-2", description: "Potatis, kyckling, rödlök och sås", calories: 550, logged_at: `${isoDate(new Date())}T12:10:00+02:00` },
-      { id: "preview-3", description: "Grekisk yoghurt med granola", calories: 428, logged_at: `${isoDate(new Date())}T16:45:00+02:00` },
+      { id: "preview-1", description: "Frukost", calories: 420, calories_min: 380, calories_max: 460, logged_at: `${isoDate(new Date())}T06:30:00+02:00` },
+      { id: "preview-2", description: "Potatis, kyckling, rödlök och sås", calories: 550, calories_min: 510, calories_max: 590, logged_at: `${isoDate(new Date())}T12:10:00+02:00` },
+      { id: "preview-3", description: "Grekisk yoghurt med granola", calories: 428, calories_min: 405, calories_max: 440, logged_at: `${isoDate(new Date())}T16:45:00+02:00` },
     ],
+    training: {
+      week_start: isoDate(new Date()),
+      sessions_planned: 4,
+      sessions_completed: 2,
+      week_load_kg: 12_480,
+      today_session_title: "Underkropp B",
+      today_session_status: "planned",
+    },
+    hydration: { consumed_ml: 1_750, goal_ml: 2_500 },
   };
 }
 

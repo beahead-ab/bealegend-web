@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   canRender,
   hiddenCount,
+  resourceWidgets,
   sections,
   visibleWidgets,
   windowScopes,
   WORDS,
+  type DashboardList,
+  type DashboardSeries,
   type DashboardWidget,
 } from "./dashboard";
 import type { DailyOverview } from "./daily";
@@ -22,8 +25,6 @@ function overviewWith(health: Partial<DailyOverview["health"]>): DailyOverview {
     meals: [],
   };
 }
-import { rangeFor, type HistoryWindow } from "./history";
-
 const widget = (binding: string, presentation = "metricRow", scope = "today"): DashboardWidget => ({
   binding,
   scope,
@@ -126,6 +127,20 @@ describe("windowScopes", () => {
   });
 });
 
+describe("resourceWidgets", () => {
+  it("asks the server once for each configured series or list", () => {
+    expect(resourceWidgets([
+      widget("health.weight", "lineChart", "last12Weeks"),
+      widget("health.weight", "lineChart", "last12Weeks"),
+      widget("training.recentSessions", "list", "last7Days"),
+      widget("daily.protein", "ring"),
+    ]).map(({ binding, scope }) => `${binding}|${scope}`)).toEqual([
+      "health.weight|last12Weeks",
+      "training.recentSessions|last7Days",
+    ]);
+  });
+});
+
 const overview = (meals: DailyOverview["meals"] = []): DailyOverview => ({
   date: "2026-08-21",
   headline: null,
@@ -137,52 +152,33 @@ const overview = (meals: DailyOverview["meals"] = []): DailyOverview => ({
 });
 
 describe("health.weight", () => {
-  const window = (days: { date: string; weight_kg: number | null }[]): HistoryWindow => ({
-    days: days.map((day) => ({ ...day, resting_heart_rate_bpm: null })),
-    training_runs: [],
+  const seriesResponse = (points: DashboardSeries["points"]): DashboardSeries => ({
+    schema_version: "dashboard-series.v1",
+    binding: "health.weight",
+    scope: "last12Weeks",
+    unit: "kg",
+    from: "2026-06-01",
+    to: "2026-08-21",
+    points,
   });
-  const range = rangeFor("last7Days", new Date(2026, 7, 21));
 
   it("charts the days that were weighed, oldest first", () => {
     const series = WORDS["health.weight"].series!(
-      window([
-        { date: "2026-08-19", weight_kg: 84.1 },
-        { date: "2026-08-16", weight_kg: 85.0 },
+      seriesResponse([
+        { date: "2026-08-16", value: 85.0 },
+        { date: "2026-08-19", value: 84.1 },
       ]),
-      range,
     );
 
     expect(series.map((point) => point.date)).toEqual(["2026-08-16", "2026-08-19"]);
     expect(series.map((point) => point.value)).toEqual([85.0, 84.1]);
   });
 
-  /** A day nobody stepped on the scale is a gap, not a zero — drawing it would
-   *  put a cliff in the chart where there was only a missed morning. */
-  it("leaves out the days with no weight rather than reading them as nought", () => {
-    const series = WORDS["health.weight"].series!(
-      window([
-        { date: "2026-08-16", weight_kg: 85.0 },
-        { date: "2026-08-17", weight_kg: null },
-        { date: "2026-08-18", weight_kg: 84.6 },
-      ]),
-      range,
-    );
+  it("renders the server-owned points without recalculating its scope", () => {
+    const response = seriesResponse([{ date: "2026-08-18", value: 84.6 }]);
+    const series = WORDS["health.weight"].series!(response);
 
-    expect(series).toHaveLength(2);
-  });
-
-  /** One request covers the widest scope, so a narrower widget has to cut its
-   *  own window out of it. */
-  it("keeps to its own scope inside a wider fetch", () => {
-    const series = WORDS["health.weight"].series!(
-      window([
-        { date: "2026-07-30", weight_kg: 86.2 },
-        { date: "2026-08-18", weight_kg: 84.6 },
-      ]),
-      range,
-    );
-
-    expect(series.map((point) => point.date)).toEqual(["2026-08-18"]);
+    expect(series).toBe(response.points);
   });
 });
 
@@ -191,17 +187,15 @@ describe("health.restingHeartRate", () => {
    *  window, gaps left as gaps, sorted oldest first. The word arrived with the
    *  design target; the data has been in the history contract all along. */
   it("charts the mornings that measured, oldest first", () => {
-    const series = WORDS["health.restingHeartRate"].series!(
-      {
-        days: [
-          { date: "2026-08-19", weight_kg: null, resting_heart_rate_bpm: 52 },
-          { date: "2026-08-17", weight_kg: null, resting_heart_rate_bpm: null },
-          { date: "2026-08-16", weight_kg: null, resting_heart_rate_bpm: 54 },
-        ],
-        training_runs: [],
-      },
-      rangeFor("last7Days", new Date(2026, 7, 21)),
-    );
+    const series = WORDS["health.restingHeartRate"].series!({
+      schema_version: "dashboard-series.v1",
+      binding: "health.restingHeartRate",
+      scope: "last12Weeks",
+      unit: "slag/min",
+      from: "2026-06-01",
+      to: "2026-08-21",
+      points: [{ date: "2026-08-16", value: 54 }, { date: "2026-08-19", value: 52 }],
+    });
 
     expect(series.map((point) => point.value)).toEqual([54, 52]);
   });
@@ -214,8 +208,7 @@ describe("daily.meals", () => {
         { id: "b", description: "Lunch", calories: 640, logged_at: "2026-08-21T11:20:00Z" },
         { id: "a", description: "Frukost", calories: 410, logged_at: "2026-08-21T06:05:00Z" },
       ]),
-      null,
-      rangeFor("last7Days", new Date(2026, 7, 21)),
+      undefined,
     );
 
     expect(items.map((item) => item.label)).toEqual(["Frukost", "Lunch"]);
@@ -225,8 +218,7 @@ describe("daily.meals", () => {
   it("names a meal that was logged without one", () => {
     const items = WORDS["daily.meals"].items!(
       overview([{ id: "a", description: "  ", calories: 210, logged_at: "2026-08-21T06:05:00Z" }]),
-      null,
-      rangeFor("last7Days", new Date(2026, 7, 21)),
+      undefined,
     );
 
     expect(items[0].label).toBe("Måltid");
@@ -234,27 +226,29 @@ describe("daily.meals", () => {
 });
 
 describe("training.recentSessions", () => {
-  const run = (id: string, completedAt: string, title = "Överkropp") => ({
-    id,
-    title,
-    session_type: "strength",
-    completed_at: completedAt,
-    active_seconds: 2700,
-  });
-
   it("puts the most recent pass at the top", () => {
+    const resource: DashboardList = {
+      schema_version: "dashboard-list.v1",
+      binding: "training.recentSessions",
+      scope: "last7Days",
+      from: "2026-08-15",
+      to: "2026-08-21",
+      items: [
+        { date: "2026-08-20", title: "Överkropp", status: "completed", detail: "45 min" },
+        { date: "2026-08-17", title: "Underkropp", status: "completed", detail: "52 min" },
+      ],
+    };
     const items = WORDS["training.recentSessions"].items!(
       overview(),
-      { days: [], training_runs: [run("a", "2026-08-17T16:00:00Z"), run("b", "2026-08-20T16:00:00Z")] },
-      rangeFor("last7Days", new Date(2026, 7, 21)),
+      resource,
     );
 
-    expect(items.map((item) => item.id)).toEqual(["b", "a"]);
+    expect(items.map((item) => item.label)).toEqual(["Överkropp", "Underkropp"]);
     expect(items[0].detail).toContain("45 min");
   });
 
-  it("draws nothing at all without a window to read", () => {
-    expect(WORDS["training.recentSessions"].items!(overview(), null, rangeFor("last7Days", new Date(2026, 7, 21))))
+  it("draws nothing at all without the server list", () => {
+    expect(WORDS["training.recentSessions"].items!(overview(), undefined))
       .toEqual([]);
   });
 });
@@ -310,6 +304,32 @@ describe("de målriktade formerna", () => {
   });
 });
 
+describe("nya serverägda dagsvärden", () => {
+  it("ritar vätska som golv utan att hitta på ett standardmål", () => {
+    const word = WORDS["daily.water"];
+    const base = overviewWith({});
+
+    expect(word.value?.({ ...base, hydration: { consumed_ml: 1_750, goal_ml: 2_500 } }))
+      .toBe("1,8 av minst 2,5 l");
+    expect(word.value?.({ ...base, hydration: { consumed_ml: 750, goal_ml: null } }))
+      .toBe("0,8 l");
+  });
+
+  it("ritar veckobelastningen bara när servern har ett vägt värde", () => {
+    const word = WORDS["training.weekLoad"];
+    const base = overviewWith({});
+
+    expect(word.value?.({
+      ...base,
+      training: { week_start: "2026-08-24", sessions_planned: 4, sessions_completed: 2, week_load_kg: 12_480 },
+    })).toBe("12,5 ton");
+    expect(word.value?.({
+      ...base,
+      training: { week_start: "2026-08-24", sessions_planned: 4, sessions_completed: 2, week_load_kg: null },
+    })).toBeNull();
+  });
+});
+
 /**
  * Tystnad och frånvaro ser likadana ut i en nolla, och bara ordet vet vilken
  * det tittar på. `measured` skiljer dem åt: falskt ritar den tomma formen,
@@ -348,15 +368,16 @@ describe("vad som räknas som mätt", () => {
     expect(WORDS["daily.steps"].measured?.(overviewWith({ active_calories: 40 }))).toBe(true);
   });
 
-  /** Fönstret hämtades och innehöll inga pass. Det är ordets tomma tillstånd,
-   *  och meningen för det var redan skriven. */
-  it("ritar veckans pass tomt när fönstret inte höll något", () => {
-    const range = rangeFor("this-week", new Date(2026, 7, 22));
-    const empty: HistoryWindow = { days: [], training_runs: [] };
+  it("läser veckans pass ur dagens serverkontrakt", () => {
     const word = WORDS["training.weekVolume"];
+    const withoutProgram = overviewWith({});
+    const withProgram = {
+      ...withoutProgram,
+      training: { week_start: "2026-08-24", sessions_planned: 4, sessions_completed: 2 },
+    };
 
-    expect(word.measured?.(overviewWith({}), empty, range)).toBe(false);
-    expect(word.value?.(overviewWith({}), empty, range)).toBe("0 pass");
+    expect(word.measured?.(withoutProgram)).toBe(false);
+    expect(word.value?.(withProgram)).toBe("2 av minst 4");
   });
 
   it("låter ord utan omdöme räknas som mätta", () => {

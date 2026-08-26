@@ -12,6 +12,8 @@ export type DailyOverview = {
     goal_min?: number | null;
     goal_max?: number | null;
     consumed: number;
+    consumed_min?: number | null;
+    consumed_max?: number | null;
     remaining: number;
     is_over: boolean;
   };
@@ -43,12 +45,26 @@ export type DailyOverview = {
     fat_goal: number | null;
   };
   meals: Meal[];
+  training?: {
+    week_start: string;
+    sessions_planned: number;
+    sessions_completed: number;
+    week_load_kg?: number | null;
+    today_session_title?: string | null;
+    today_session_status?: string | null;
+  } | null;
+  hydration?: {
+    consumed_ml: number;
+    goal_ml?: number | null;
+  } | null;
 };
 
 export type Meal = {
   id: string;
   description: string | null;
   calories: number;
+  calories_min?: number | null;
+  calories_max?: number | null;
   protein?: number;
   carbs?: number;
   fat?: number;

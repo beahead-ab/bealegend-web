@@ -1007,6 +1007,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 .module-hero > span { font-size: 15px; }
+.module-hero .module-approx { margin-right: 1px; }
 .module-hero-caption { margin-left: 2px; }
 
 .nutrition-range {
@@ -1018,7 +1019,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .nutrition-range-track,
 .nutrition-range-dashed,
-.nutrition-range-target {
+.nutrition-range-target,
+.nutrition-range-uncertainty {
   position: absolute;
   inset-block: 0;
 }
@@ -1048,6 +1050,14 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   border-radius: 2px;
   background: var(--ink);
   transform: translateX(-50%);
+}
+
+.nutrition-range-uncertainty {
+  z-index: 2;
+  color: var(--blue);
+  background: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 5px);
+  opacity: 0.75;
+  border-radius: 999px;
 }
 
 .macro-grid {
@@ -1084,7 +1094,20 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .meal-row time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .meal-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.meal-row strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.meal-row strong { display: grid; justify-items: end; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.meal-row strong small { color: var(--muted); font-size: 11px; font-weight: 400; }
+
+.hydration-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 3px 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.hydration-row > span { color: var(--muted); }
+.hydration-row strong { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.hydration-row small { grid-column: 2; color: var(--muted); text-align: right; }
 .meal-empty { margin: 16px 0 10px; color: var(--muted); }
 .meal-add {
   width: 100%;
