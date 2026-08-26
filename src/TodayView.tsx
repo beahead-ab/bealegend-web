@@ -6,13 +6,17 @@ import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
 import {
   fetchDashboard,
+  fetchDashboardList,
+  fetchDashboardSeries,
   hiddenCount,
+  resourceKey,
+  resourceWidgets,
   sections,
   visibleWidgets,
-  windowScopes,
   WORDS,
   type CountdownStatus,
   type DashboardConfig,
+  type DashboardResource,
   type DashboardSection,
   type DashboardWidget,
 } from "./dashboard";
@@ -29,14 +33,7 @@ import { fetchedLabel, recallConfig, recallDay, rememberConfig, rememberDay } fr
 import type { SignedInUser } from "./api";
 import { readRoute, routeSearch, sameRoute, type Route, type Surface } from "./route";
 import { BackIcon, ChevronIcon } from "./icons";
-import {
-  addDays,
-  coveringRange,
-  fetchHistory,
-  rangeFor,
-  rangeLabel,
-  type HistoryWindow,
-} from "./history";
+import { addDays, rangeLabel } from "./history";
 import { Countdown, ItemList, LineChart, MetricRow, RangeBar, Ring } from "./widgets";
 import { NutritionModule } from "./modules";
 
@@ -216,7 +213,7 @@ export function TodayView({ onSignOut, user, preview }: {
   const conversation = useConversation();
   const [overview, setOverview] = useState<DailyOverview | null>(preview ?? null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
-  const [history, setHistory] = useState<HistoryWindow | null>(null);
+  const [resources, setResources] = useState<Record<string, DashboardResource>>({});
   const [activeRun, setActiveRun] = useState<TrainingRun | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [error, setError] = useState("");
@@ -312,23 +309,32 @@ export function TodayView({ onSignOut, user, preview }: {
     return () => { cancelled = true; };
   }, [userId, preview]);
 
-  // One request covers every window word on the surface, and a surface with
-  // none pays for nothing.
+  // Servern äger fönster, datapunkter och listornas radtak. Ytan frågar därför
+  // efter exakt de resurser konfigurationen använder och räknar inte om dem.
   useEffect(() => {
-    const range = coveringRange(config ? windowScopes(config.widgets) : [], date);
-    if (!range) {
-      setHistory(null);
-      return;
-    }
+    const widgets = resourceWidgets(config?.widgets ?? []);
+    if (widgets.length === 0) { setResources({}); return; }
     let cancelled = false;
-    // Same reason as the day: a window read for one date must not be drawn
-    // under another while the new one is on its way.
-    setHistory(null);
-    fetchHistory(range)
-      .then((result) => !cancelled && setHistory(result))
+    setResources({});
+    Promise.all(widgets.map(async (widget) => {
+      try {
+        const source = WORDS[widget.binding].source;
+        const result = source === "series"
+          ? await fetchDashboardSeries(widget.binding, widget.scope)
+          : await fetchDashboardList(widget.binding, widget.scope);
+        return [resourceKey(widget.binding, widget.scope), result] as const;
+      } catch {
+        // En trasig kurva får inte ta med sig en fungerande lista. Varje
+        // resurs är en självständig del av ytan och får falla bort ensam.
+        return null;
+      }
+    }))
+      .then((entries) => {
+        if (!cancelled) setResources(Object.fromEntries(entries.filter((entry) => entry !== null)));
+      })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [config, date]);
+  }, [config]);
 
   // A client that often has a keyboard should be usable with one. Esc closes
   // whichever surface is open, which is what every other app on the machine does.
@@ -437,14 +443,14 @@ export function TodayView({ onSignOut, user, preview }: {
                       key={`${section.group}-${section.widgets[0].binding}`}
                       overview={shownDay}
                       onAddMeal={() => setSurface("thread")}
+                      bindings={section.widgets.map((widget) => widget.binding)}
                     />
                   ) : (
                     <Card
                       key={`${section.group}-${section.widgets[0].binding}`}
                       section={section}
                       overview={shownDay}
-                      history={history}
-                      date={date}
+                      resources={resources}
                       countdowns={config?.countdowns ?? []}
                       openTraining={() => setSurface("session")}
                       runningLabel={runningLabel}
@@ -544,18 +550,17 @@ function DaySkeleton() {
  * never arrived — is a heading over nothing, which reads as a surface that
  * broke rather than one that is honest about what it does not know.
  */
-function Card({ section, overview, history, date, countdowns, openTraining, runningLabel }: {
+function Card({ section, overview, resources, countdowns, openTraining, runningLabel }: {
   section: DashboardSection;
   overview: DailyOverview;
-  history: HistoryWindow | null;
-  date: Date;
+  resources: Record<string, DashboardResource>;
   countdowns: CountdownStatus[];
   openTraining: () => void;
   runningLabel: string;
 }) {
   const drawn = section.widgets
     .map((widget) => {
-      const body = drawWidget(widget, overview, history, date, countdowns, openTraining, runningLabel, section.hero);
+      const body = drawWidget(widget, overview, resources, countdowns, openTraining, runningLabel, section.hero);
       return body === null ? null : <div key={widget.binding}>{body}</div>;
     })
     .filter((node) => node !== null);
@@ -580,23 +585,22 @@ function Card({ section, overview, history, date, countdowns, openTraining, runn
 function drawWidget(
   widget: DashboardWidget,
   overview: DailyOverview,
-  history: HistoryWindow | null,
-  date: Date,
+  resources: Record<string, DashboardResource>,
   countdowns: CountdownStatus[],
   openTraining: () => void,
   runningLabel: string,
   hero = false,
 ) {
   const word = WORDS[widget.binding];
-  const range = rangeFor(widget.scope, date);
-  const needsWindow = word.source === "window";
+  const resource = resources[resourceKey(widget.binding, widget.scope)];
+  const needsResource = word.source !== "day";
 
-  if (needsWindow && !history) return null;
+  if (needsResource && !resource) return null;
 
   // Silence, not absence. A word that measured nothing keeps its place and
   // draws its empty form; a word that cannot be drawn at all still returns
   // null below and leaves no trace.
-  const measured = word.measured ? word.measured(overview, history, range) : true;
+  const measured = word.measured ? word.measured(overview) : true;
 
   switch (widget.presentation) {
     case "rangeBar": {
@@ -617,12 +621,13 @@ function drawWidget(
     }
     case "ring": {
       const progress = word.progress?.(overview);
-      if (progress == null) return null;
+      const value = word.value?.(overview);
+      if (value == null) return null;
       return (
         <Ring
           label={word.title}
-          value={word.value?.(overview, history, range) ?? ""}
-          progress={progress}
+          value={value}
+          progress={progress ?? null}
           empty={!measured}
         />
       );
@@ -631,7 +636,7 @@ function drawWidget(
       return (
         <LineChart
           label={word.title}
-          series={word.series?.(history as HistoryWindow, range) ?? []}
+          series={resource?.schema_version === "dashboard-series.v1" ? word.series?.(resource) ?? [] : []}
           unit={word.unit}
           range={rangeLabel(widget.scope)}
           empty={word.empty ?? "Inget att visa än."}
@@ -641,7 +646,10 @@ function drawWidget(
       return (
         <ItemList
           label={word.title}
-          items={word.items?.(overview, history, range) ?? []}
+          items={word.items?.(
+            overview,
+            resource?.schema_version === "dashboard-list.v1" ? resource : undefined,
+          ) ?? []}
           empty={word.empty ?? "Inget att visa än."}
         />
       );
@@ -649,7 +657,7 @@ function drawWidget(
       if (word.opensTraining) {
         return <MetricRow label={word.title} value={runningLabel} onClick={openTraining} />;
       }
-      const value = word.value?.(overview, history, range);
+      const value = word.value?.(overview);
       if (value == null) return null;
       return (
         <MetricRow

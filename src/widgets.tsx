@@ -88,16 +88,16 @@ const LAP_CIRCUMFERENCE = 2 * Math.PI * LAP_RADIUS;
 export function Ring({ label, value, progress, empty = false }: {
   label: string;
   value: string;
-  progress: number;
+  progress: number | null;
   /** Nothing measured. The ring keeps its place as a dashed outline: no fill,
    *  no percentage. Nought per cent is a result, and this is not one. */
   empty?: boolean;
 }) {
-  const filled = Math.min(Math.max(progress, 0), 1);
-  const percent = Math.round(progress * 100);
+  const filled = progress == null ? 0 : Math.min(Math.max(progress, 0), 1);
+  const percent = progress == null ? null : Math.round(progress * 100);
   // A second lap at most: three times the goal and twice the goal should look
   // alike, because the number above already says which it was.
-  const lap = Math.min(Math.max(progress - 1, 0), 1);
+  const lap = progress == null ? 0 : Math.min(Math.max(progress - 1, 0), 1);
 
   if (empty) {
     return (
@@ -126,17 +126,19 @@ export function Ring({ label, value, progress, empty = false }: {
         viewBox={`0 0 ${RING_BOX} ${RING_BOX}`}
         className="ring"
         role="img"
-        aria-label={`${label}: ${percent} procent`}
+        aria-label={percent == null ? `${label}: ${value}` : `${label}: ${percent} procent`}
       >
         <circle className="ring-track" cx={RING_CENTRE} cy={RING_CENTRE} r={RING_RADIUS} />
-        <circle
-          className="ring-fill"
-          cx={RING_CENTRE}
-          cy={RING_CENTRE}
-          r={RING_RADIUS}
-          strokeDasharray={RING_CIRCUMFERENCE}
-          strokeDashoffset={RING_CIRCUMFERENCE * (1 - filled)}
-        />
+        {progress != null && (
+          <circle
+            className="ring-fill"
+            cx={RING_CENTRE}
+            cy={RING_CENTRE}
+            r={RING_RADIUS}
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={RING_CIRCUMFERENCE * (1 - filled)}
+          />
+        )}
         {lap > 0 && (
           <circle
             className="ring-lap"
@@ -147,7 +149,7 @@ export function Ring({ label, value, progress, empty = false }: {
             strokeDashoffset={LAP_CIRCUMFERENCE * (1 - lap)}
           />
         )}
-        <text x={RING_CENTRE} y={RING_CENTRE} className="ring-label">{percent}%</text>
+        {percent != null && <text x={RING_CENTRE} y={RING_CENTRE} className="ring-label">{percent}%</text>}
       </svg>
       <div className="ring-text">
         <span className="muted">{label}</span>

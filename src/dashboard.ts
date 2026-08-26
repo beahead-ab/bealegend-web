@@ -1,6 +1,5 @@
 import { request } from "./api";
 import { healthMeasured, swedishNumber, type DailyOverview } from "./daily";
-import { withinRange, type DateRange, type HistoryWindow } from "./history";
 
 export type DashboardWidget = {
   binding: string;
@@ -68,6 +67,41 @@ export type SeriesPoint = { date: string; value: number };
 
 export type ListItem = { id: string; label: string; detail: string };
 
+export type DashboardSeries = {
+  schema_version: "dashboard-series.v1";
+  binding: string;
+  scope: string;
+  unit: string;
+  from: string;
+  to: string;
+  points: SeriesPoint[];
+};
+
+export type DashboardList = {
+  schema_version: "dashboard-list.v1";
+  binding: string;
+  scope: string;
+  from: string;
+  to: string;
+  items: Array<{ date: string; title: string; status?: string | null; detail?: string | null }>;
+};
+
+export type DashboardResource = DashboardSeries | DashboardList;
+
+export function resourceKey(binding: string, scope: string): string {
+  return `${binding}|${scope}`;
+}
+
+export function fetchDashboardSeries(binding: string, scope: string): Promise<DashboardSeries> {
+  const params = new URLSearchParams({ binding, scope });
+  return request<DashboardSeries>(`/api/v1/dashboard/series?${params}`);
+}
+
+export function fetchDashboardList(binding: string, scope: string): Promise<DashboardList> {
+  const params = new URLSearchParams({ binding, scope });
+  return request<DashboardList>(`/api/v1/dashboard/list?${params}`);
+}
+
 type Word = {
   title: string;
   group: WidgetGroup;
@@ -76,10 +110,10 @@ type Word = {
    * behind it. This is what the surface consults before fetching — a home
    * screen with no window word must not pay for a history request.
    */
-  source: "day" | "window";
+  source: "day" | "series" | "list";
   /** Null when the day carries no value — the row is left out rather than
    *  shown as a zero, which would read as a real measurement. */
-  value?: (overview: DailyOverview, history?: HistoryWindow | null, range?: DateRange) => string | null;
+  value?: (overview: DailyOverview) => string | null;
   /**
    * Whether anything was actually measured for this word. False draws the
    * empty form — a dash and a dashed scale — and the value is never consulted.
@@ -88,10 +122,10 @@ type Word = {
    * at all and the row is left out. Silence and absence look alike in a zero,
    * and only the word knows which one it is looking at.
    */
-  measured?: (overview: DailyOverview, history?: HistoryWindow | null, range?: DateRange) => boolean;
+  measured?: (overview: DailyOverview) => boolean;
   progress?: (overview: DailyOverview) => number | null;
-  series?: (history: HistoryWindow, range: DateRange) => SeriesPoint[];
-  items?: (overview: DailyOverview, history: HistoryWindow | null, range: DateRange) => ListItem[];
+  series?: (resource: DashboardSeries) => SeriesPoint[];
+  items?: (overview: DailyOverview, resource?: DashboardList) => ListItem[];
   /** An interval word: the measurement against the user's own floor and
    *  ceiling. Never against an opinion — with no goal set, the bounds are null
    *  and the bar says so. */
@@ -164,17 +198,6 @@ function sleepBand(value: number | null, min: number | null, max: number | null)
   return "i ditt fönster";
 }
 
-function weekCount(history: HistoryWindow, range: DateRange): number {
-  return (history.training_runs ?? [])
-    .filter((run) => withinRange(localDay(run.completed_at), range)).length;
-}
-
-function localDay(instant: string): string {
-  const date = new Date(instant);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
-
 /**
  * The client's half of the vocabulary: what each word looks like. The server
  * owns which words exist and which forms are permitted; this owns their
@@ -241,6 +264,27 @@ export const WORDS: Record<string, Word> = {
           detail: `${swedishNumber(meal.calories)} kcal`,
         })),
   },
+  "daily.water": {
+    title: "Vätska",
+    group: "Näring",
+    source: "day",
+    unit: "l",
+    value: (overview) => {
+      const hydration = overview.hydration;
+      if (!hydration) return null;
+      const consumed = hydration.consumed_ml / 1_000;
+      const goal = hydration.goal_ml == null ? null : hydration.goal_ml / 1_000;
+      return goal && goal > 0
+        ? `${consumed.toLocaleString("sv-SE", { maximumFractionDigits: 1 })} av minst ${goal.toLocaleString("sv-SE", { maximumFractionDigits: 1 })} l`
+        : `${consumed.toLocaleString("sv-SE", { maximumFractionDigits: 1 })} l`;
+    },
+    progress: (overview) => {
+      const hydration = overview.hydration;
+      return hydration?.goal_ml && hydration.goal_ml > 0
+        ? hydration.consumed_ml / hydration.goal_ml
+        : null;
+    },
+  },
   "daily.steps": {
     title: "Steg",
     group: "Hälsa",
@@ -263,26 +307,18 @@ export const WORDS: Record<string, Word> = {
   "health.weight": {
     title: "Vikttrend",
     group: "Hälsa",
-    source: "window",
+    source: "series",
     unit: "kg",
     empty: "Inget vägt den här perioden.",
-    series: (history, range) =>
-      history.days
-        .filter((day) => day.weight_kg != null && withinRange(day.date, range))
-        .map((day) => ({ date: day.date, value: day.weight_kg as number }))
-        .sort((a, b) => a.date.localeCompare(b.date)),
+    series: (resource) => resource.points,
   },
   "health.restingHeartRate": {
     title: "Vilopuls",
     group: "Hälsa",
-    source: "window",
+    source: "series",
     unit: "slag/min",
     empty: "Ingen vilopuls uppmätt den här perioden.",
-    series: (history, range) =>
-      history.days
-        .filter((day) => day.resting_heart_rate_bpm != null && withinRange(day.date, range))
-        .map((day) => ({ date: day.date, value: day.resting_heart_rate_bpm as number }))
-        .sort((a, b) => a.date.localeCompare(b.date)),
+    series: (resource) => resource.points,
   },
   "training.todaySession": {
     title: "Dagens pass",
@@ -312,13 +348,23 @@ export const WORDS: Record<string, Word> = {
   "training.weekVolume": {
     title: "Veckans pass",
     group: "Träning",
-    source: "window",
+    source: "day",
     empty: "Inga pass den här veckan.",
-    measured: (_overview, history, range) => !!history && !!range && weekCount(history, range) > 0,
-    value: (_overview, history, range) => {
-      if (!history || !range) return null;
-      const count = weekCount(history, range);
-      return count === 1 ? "1 pass" : `${count} pass`;
+    measured: (overview) => overview.training != null,
+    value: (overview) => {
+      const training = overview.training;
+      if (!training) return null;
+      return `${training.sessions_completed} av minst ${training.sessions_planned}`;
+    },
+  },
+  "training.weekLoad": {
+    title: "Veckans belastning",
+    group: "Träning",
+    source: "day",
+    value: (overview) => {
+      const kilograms = overview.training?.week_load_kg;
+      if (kilograms == null) return null;
+      return `${(kilograms / 1_000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} ton`;
     },
   },
   "goal.countdown": {
@@ -330,21 +376,21 @@ export const WORDS: Record<string, Word> = {
   "training.recentSessions": {
     title: "Senaste passen",
     group: "Träning",
-    source: "window",
+    source: "list",
     empty: "Inga pass den här perioden.",
-    items: (_overview, history, range) =>
-      (history?.training_runs ?? [])
-        .filter((run) => withinRange(localDay(run.completed_at), range))
-        .sort((a, b) => b.completed_at.localeCompare(a.completed_at))
-        .map((run) => ({
-          id: run.id,
-          label: run.title,
-          detail: `${new Date(run.completed_at).toLocaleDateString("sv-SE", {
+    items: (_overview, resource) =>
+      (resource?.items ?? []).map((item) => ({
+        id: `${item.date}|${item.title}`,
+        label: item.title,
+        detail: [
+          new Date(`${item.date}T12:00:00`).toLocaleDateString("sv-SE", {
             weekday: "short",
             day: "numeric",
             month: "short",
-          })} · ${Math.max(1, Math.round(run.active_seconds / 60))} min`,
-        })),
+          }),
+          item.detail,
+        ].filter(Boolean).join(" · "),
+      })),
   },
 };
 
@@ -380,8 +426,19 @@ export function canRender(widget: DashboardWidget): boolean {
 /** The scopes the surface has to fetch a window for, empty when it does not. */
 export function windowScopes(widgets: DashboardWidget[]): string[] {
   return widgets
-    .filter((widget) => canRender(widget) && WORDS[widget.binding].source === "window")
+    .filter((widget) => canRender(widget) && WORDS[widget.binding].source !== "day")
     .map((widget) => widget.scope);
+}
+
+export function resourceWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
+  const seen = new Set<string>();
+  return widgets.filter((widget) => {
+    if (!canRender(widget) || WORDS[widget.binding].source === "day") return false;
+    const key = resourceKey(widget.binding, widget.scope);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export type DashboardSection = { group: WidgetGroup; widgets: DashboardWidget[]; hero: boolean };
