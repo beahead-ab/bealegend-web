@@ -6,7 +6,7 @@
  * switcher the native app carried is not repeated here.
  */
 :root {
-  --canvas: #faf9f6;
+  --canvas: #faf8f5;
   --surface: #ffffff;
   --ink: #16161a;
   --muted: #6b6b66;
@@ -67,6 +67,19 @@
     --shadow: rgba(0, 0, 0, 0.55);
     --danger-ink: #161514;
     --shadow-soft: rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #161514;
+    --surface: #23211f;
+    --ink: #f6f4f1;
+    --muted: #a6a4a2;
+    --line: rgba(255, 255, 255, 0.11);
+    --blue: #67a3e1;
+    --red: #d46c63;
+    color-scheme: dark;
   }
 }
 
@@ -281,15 +294,15 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 /* One serif sentence, then a short blue rule — the canvas's Idag. */
-.hero { margin: 10px 0 18px; }
+.hero { margin: 12px 0 24px; }
 .hero p {
   margin: 0;
   font-family: ui-serif, Georgia, "Times New Roman", serif;
-  font-size: 27px;
+  font-size: clamp(28px, 6vw, 42px);
   line-height: 1.25;
   font-weight: 500;
+  text-wrap: balance;
 }
-.hero-rule { display: block; width: 54px; height: 2px; margin-top: 12px; background: var(--blue); }
 
 .group-card { padding: 14px 18px; margin-bottom: 14px; }
 .group-card h2 {
@@ -744,7 +757,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   font-size: 14px;
 }
 
-.coach-avatar { width: 22px; height: 22px; object-fit: contain; margin-top: 3px; flex: 0 0 auto; }
+.coach-avatar-picture { width: 22px; height: 30px; margin-top: 3px; flex: 0 0 auto; }
+.coach-avatar { width: 22px; height: 30px; object-fit: contain; display: block; }
 .coach-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 82%; }
 .coach-body p { margin: 0; font-size: 14px; white-space: pre-wrap; }
 
@@ -948,4 +962,160 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 @media (pointer: coarse) {
   .receipt-row button,
   .receipt-more { min-height: 44px; }
+}
+
+/* Shared visualization language from the design handoff. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nutrition-module {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.module-eyebrow {
+  color: var(--muted);
+  font: 600 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.module-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.module-hero strong {
+  color: var(--ink);
+  font-size: clamp(36px, 8vw, 54px);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+}
+
+.module-hero > span { font-size: 15px; }
+.module-hero-caption { margin-left: 2px; }
+
+.nutrition-range {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  margin: 2px 0 4px;
+}
+
+.nutrition-range-track,
+.nutrition-range-dashed,
+.nutrition-range-target {
+  position: absolute;
+  inset-block: 0;
+}
+
+.nutrition-range-track {
+  inset-inline: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+
+.nutrition-range-target { background: color-mix(in srgb, var(--blue) 24%, transparent); }
+.nutrition-range-over { right: 0; }
+.nutrition-range-empty { inset-inline: 0; opacity: 0.55; }
+
+.nutrition-range-dashed {
+  color: color-mix(in srgb, var(--muted) 55%, transparent);
+  background-image: repeating-linear-gradient(115deg, currentColor 0 1.5px, transparent 1.5px 5px);
+}
+
+.nutrition-range-over { color: color-mix(in srgb, #a98331 58%, transparent); }
+
+.nutrition-range-marker {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+  transform: translateX(-50%);
+}
+
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.macro-value { display: grid; gap: 1px; min-width: 0; }
+.macro-value span, .macro-value small { color: var(--muted); font-size: 11px; }
+.macro-value strong { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.meal-card,
+.module-card {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.meal-card { margin-top: 2px; }
+.meal-card-head { display: flex; align-items: center; }
+.meal-card-head > span { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+.meal-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.meal-row time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.meal-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meal-row strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.meal-empty { margin: 16px 0 10px; color: var(--muted); }
+.meal-add {
+  width: 100%;
+  padding: 13px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: left;
+}
+.meal-add:hover { color: var(--ink); }
+
+.module-card { display: grid; gap: 11px; margin-bottom: 16px; }
+.module-card h2 { margin: 0; font: 500 22px/1.2 ui-serif, Georgia, "Times New Roman", serif; }
+.module-empty { margin: 0; color: var(--muted); text-wrap: pretty; }
+.training-title-row { display: flex; align-items: center; gap: 12px; }
+.training-title-row > span { margin-left: auto; color: var(--muted); font-size: 24px; }
+.training-module p { margin: 0; color: var(--muted); font-size: 13px; }
+
+.week-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+
+.week-progress span { display: block; height: 100%; border-radius: inherit; background: var(--blue); }
+
+@media (max-width: 440px) {
+  .app-shell, .thread { padding-inline: 16px; }
+  .app-header { gap: 6px; }
+  .module-hero { flex-wrap: wrap; }
+  .module-hero-caption { flex-basis: 100%; }
+  .meal-row { grid-template-columns: 42px minmax(0, 1fr); }
+  .meal-row strong { grid-column: 2; }
 }

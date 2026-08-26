@@ -8,6 +8,9 @@ export type DailyOverview = {
   calories: {
     can_calculate: boolean;
     goal: number;
+    /** Optional until the daily overview contract exposes the interval. */
+    goal_min?: number | null;
+    goal_max?: number | null;
     consumed: number;
     remaining: number;
     is_over: boolean;
@@ -46,6 +49,9 @@ export type Meal = {
   id: string;
   description: string | null;
   calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
   logged_at: string;
 };
 
