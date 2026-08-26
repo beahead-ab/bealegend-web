@@ -32,7 +32,10 @@ export function SignInView({
   return (
     <div className="sign-in">
       <div className="sign-in-lockup">
-        <img src="/brandmark.png" alt="" className="sign-in-mark" />
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcSet="/brandmark-reverse.png" />
+          <img src="/brandmark.png" alt="" className="sign-in-mark" />
+        </picture>
         <span className="wordmark">BE A LEGEND</span>
       </div>
 

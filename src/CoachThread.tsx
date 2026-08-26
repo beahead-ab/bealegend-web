@@ -111,7 +111,10 @@ export function CoachThread({
                 <Fragment key={message.id}>
                   {stamp}
                   <div className="bubble-row coach" aria-busy={message.streaming || undefined}>
-                  <img src="/brandmark.png" alt="" className="coach-avatar" />
+                    <picture className="coach-avatar-picture">
+                      <source media="(prefers-color-scheme: dark)" srcSet="/brandmark-reverse.png" />
+                      <img src="/brandmark.png" alt="" className="coach-avatar" />
+                    </picture>
                   <div className="coach-body">
                     {message.streaming && !prose.text ? (
                       <span className="floor-spinner" aria-label="Coachen skriver" />

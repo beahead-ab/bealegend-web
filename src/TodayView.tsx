@@ -38,6 +38,7 @@ import {
   type HistoryWindow,
 } from "./history";
 import { Countdown, ItemList, LineChart, MetricRow, RangeBar, Ring } from "./widgets";
+import { NutritionModule } from "./modules";
 
 const SWEDISH = "sv-SE";
 
@@ -195,7 +196,11 @@ function AccountMenu({ name, runActive, onSignOut }: {
   );
 }
 
-export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: SignedInUser }) {
+export function TodayView({ onSignOut, user, preview }: {
+  onSignOut: () => void;
+  user?: SignedInUser;
+  preview?: DailyOverview;
+}) {
   // Nothing is remembered for a session we cannot attribute. Failing closed
   // costs a refetch; the alternative is one person's day in a store the next
   // person could read.
@@ -209,7 +214,7 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation();
-  const [overview, setOverview] = useState<DailyOverview | null>(null);
+  const [overview, setOverview] = useState<DailyOverview | null>(preview ?? null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
   const [history, setHistory] = useState<HistoryWindow | null>(null);
   const [activeRun, setActiveRun] = useState<TrainingRun | null>(null);
@@ -225,6 +230,7 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
   // Only to know whether a pass is running. Saying "Dagens pass" while one is
   // in progress would be the surface's own small lie.
   useEffect(() => {
+    if (preview) return;
     let cancelled = false;
     // Cleared first. "Pågår" and the pass shortcut belong to the day they were
     // read for, and leaving them up while another day loads is the surface
@@ -239,7 +245,7 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [date]);
+  }, [date, preview]);
 
   // Bumped to retry: the same fetch, run again, without a reload. Mid-pass,
   // "load the page again" is the most expensive instruction the surface can give.
@@ -247,6 +253,7 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
+    if (preview) return;
     let cancelled = false;
     const iso = isoDate(date);
     setError("");
@@ -282,9 +289,10 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
         setError("Dagen kunde inte hämtas just nu.");
       });
     return () => { cancelled = true; };
-  }, [date, attempt, userId]);
+  }, [date, attempt, userId, preview]);
 
   useEffect(() => {
+    if (preview) return;
     let cancelled = false;
     // The remembered shape first, so an offline start draws the user's own
     // surface rather than the built-in one. It is replaced the moment a real
@@ -302,7 +310,7 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, preview]);
 
   // One request covers every window word on the surface, and a surface with
   // none pays for nothing.
@@ -411,7 +419,6 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
         <>
           <div className="hero">
             <p>{heroSentence(shownDay, showsTraining)}</p>
-            <span className="hero-rule" aria-hidden="true" />
           </div>
 
           {/* Under hero-meningen, över korten: där ögat redan är när ytan ser
@@ -425,16 +432,24 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
             ? (
               <>
                 {configured.map((section) => (
-                  <Card
-                    key={`${section.group}-${section.widgets[0].binding}`}
-                    section={section}
-                    overview={shownDay}
-                    history={history}
-                    date={date}
-                    countdowns={config?.countdowns ?? []}
-                    openTraining={() => setSurface("session")}
-                    runningLabel={runningLabel}
-                  />
+                  section.group === "Näring" ? (
+                    <NutritionModule
+                      key={`${section.group}-${section.widgets[0].binding}`}
+                      overview={shownDay}
+                      onAddMeal={() => setSurface("thread")}
+                    />
+                  ) : (
+                    <Card
+                      key={`${section.group}-${section.widgets[0].binding}`}
+                      section={section}
+                      overview={shownDay}
+                      history={history}
+                      date={date}
+                      countdowns={config?.countdowns ?? []}
+                      openTraining={() => setSurface("session")}
+                      runningLabel={runningLabel}
+                    />
+                  )
                 ))}
                 {behindMore > 0 && !expanded && (
                   <button className="quiet-button centred show-more" onClick={() => setExpanded(true)}>
@@ -451,6 +466,7 @@ export function TodayView({ onSignOut, user }: { onSignOut: () => void; user?: S
             : (
               <BuiltInSurface
                 overview={shownDay}
+                openThread={() => setSurface("thread")}
                 openTraining={() => setSurface("session")}
                 runningLabel={runningLabel}
               />
@@ -510,7 +526,6 @@ function DaySkeleton() {
     <>
       <div className="hero">
         <div className="skeleton-line long" />
-        <span className="hero-rule" aria-hidden="true" />
       </div>
       {["Näring", "Träning"].map((group) => (
         <section className="card group-card" key={group}>
@@ -654,29 +669,15 @@ function drawWidget(
  * net bolted on: it is the answer for every account that has never touched
  * its dashboard.
  */
-function BuiltInSurface({ overview, openTraining, runningLabel }: {
+function BuiltInSurface({ overview, openThread, openTraining, runningLabel }: {
   overview: DailyOverview;
+  openThread: () => void;
   openTraining: () => void;
   runningLabel: string;
 }) {
-  const calories = WORDS["daily.energyBudget"].value?.(overview);
-  const proteinWord = WORDS["daily.protein"];
-  const protein = proteinWord.value?.(overview);
-  const proteinMeasured = proteinWord.measured?.(overview) ?? true;
-
   return (
     <>
-      <section className="card group-card">
-        <h2>Näring</h2>
-        {calories && (
-          <MetricRow
-            label="Kalorier"
-            value={calories}
-            progress={WORDS["daily.energyBudget"].progress?.(overview)}
-          />
-        )}
-        {protein && <MetricRow label="Protein" value={protein} empty={!proteinMeasured} />}
-      </section>
+      <NutritionModule overview={overview} onAddMeal={openThread} />
       <section className="card group-card">
         <h2>Träning</h2>
         <MetricRow label="Dagens pass" value={runningLabel} onClick={openTraining} />
