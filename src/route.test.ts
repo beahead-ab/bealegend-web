@@ -85,3 +85,19 @@ describe("sameRoute", () => {
       .toBe(false);
   });
 });
+
+describe("programytan i adressen", () => {
+  /**
+   * Fjärde ytan, samma form som de tre andra: svenskt ord i länken, eftersom
+   * adresser klistras in i meddelanden mellan människor.
+   */
+  it("läses och skrivs som ?v=program", () => {
+    expect(readRoute("?v=program", WEDNESDAY).surface).toBe("program");
+    expect(routeSearch({ date: WEDNESDAY, surface: "program" }, WEDNESDAY)).toBe("?v=program");
+  });
+
+  it("bär dagen vidare när man kom från en annan dag", () => {
+    expect(routeSearch({ date: new Date(2026, 7, 12), surface: "program" }, WEDNESDAY))
+      .toBe("?d=2026-08-12&v=program");
+  });
+});

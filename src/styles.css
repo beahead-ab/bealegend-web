@@ -1142,3 +1142,94 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .meal-row { grid-template-columns: 42px minmax(0, 1fr); }
   .meal-row strong { grid-column: 2; }
 }
+
+/* Programsidan.
+   Bilden är 4:3, som designpaketet ritar den, och beskuren i stället för
+   utdragen: ett program vars bild är kvadratisk ska inte se ut att vara ett
+   annat program än det är. */
+.program-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  display: block;
+}
+
+.program-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.program-reasons {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+/* Bågen. Staplarna delar bredd i stället för att ha en egen, så ett program på
+   fyra veckor och ett på tjugofyra får samma figur och inte två olika. */
+.arc {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 96px;
+  margin: 4px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.arc-week {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+
+/* Taket på bredden: ett program på fyra veckor ska inte få fyra klossar tvärs
+   över en desktopvy. Bågen är en form, och en form behöver staplar som är
+   högre än de är breda. */
+.arc-bar {
+  width: 100%;
+  max-width: 56px;
+  border-radius: 3px 3px 0 0;
+  background: var(--blue);
+}
+
+/* En avlastningsvecka är lätt med flit. Den ritas därför tonad snarare än
+   låg-och-lika-blå — höjden säger hur tung veckan är, färgen varför. */
+.arc-bar.deload { background: var(--blue-soft); border: 1px solid var(--blue); border-bottom: none; }
+.arc-bar.test { background: var(--zone-line); }
+
+.arc-label {
+  font-size: 11px;
+  line-height: 14px;
+  height: 14px;
+}
+
+.period-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.period-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+/* Mobil: staplarna får inte bli hårstrån. Under 380 px räcker inte tolv
+   staplar med mellanrum, så mellanrummet är det som får ge sig först. */
+@media (max-width: 380px) {
+  .arc { gap: 2px; height: 80px; }
+}

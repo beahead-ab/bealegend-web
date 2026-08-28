@@ -345,11 +345,12 @@ function PassSkeleton() {
  * the run itself arrives with the command queue behind it, and a start button
  * without that queue would be the one thing this surface must not be.
  */
-export function SessionView({ date, conversation, onClose, onOpenThread }: {
+export function SessionView({ date, conversation, onClose, onOpenThread, onOpenProgram }: {
   date: Date;
   conversation: Conversation;
   onClose: () => void;
   onOpenThread: () => void;
+  onOpenProgram: () => void;
 }) {
   const [home, setHome] = useState<TrainingHome | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
@@ -381,6 +382,10 @@ export function SessionView({ date, conversation, onClose, onOpenThread }: {
         <button className="thread-back" onClick={() => (chosen && !only ? setChosen(null) : onClose())}>
           <BackIcon /> {chosen && !only ? "Dagens pass" : dayLabel(date)}
         </button>
+        {/* Vägen till programmet passet hör till. Mitt i ett pass är frågan
+            »varför just det här?« — och svaret ligger en yta bort, inte i en
+            mening vi skriver här. */}
+        <button className="quiet-button" onClick={onOpenProgram}>Programmet</button>
       </header>
 
       {error && (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChangeReceipt } from "./ChangeReceipt";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
+import { ProgramView } from "./ProgramView";
 import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
 import {
@@ -208,6 +209,9 @@ export function TodayView({ onSignOut, user, preview }: {
   const { date, surface } = route;
   const setSurface = (next: Surface) => go({ ...route, surface: next });
   const setDate = (next: Date) => go({ ...route, date: next });
+  // A directly opened/reloaded program has no parent and closes to today. When
+  // the pass opened it, preserve that one-step context explicitly.
+  const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session">("today");
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation();
@@ -345,7 +349,9 @@ export function TodayView({ onSignOut, user, preview }: {
       if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
       if (event.key === "ArrowLeft") setDate(addDays(date, -1));
       if (event.key === "ArrowRight" && !atFuture) setDate(addDays(date, 1));
-      if (event.key === "Escape" && surface !== "today") setSurface("today");
+      if (event.key === "Escape" && surface !== "today") {
+        setSurface(surface === "program" ? programReturnSurface : "today");
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -382,6 +388,21 @@ export function TodayView({ onSignOut, user, preview }: {
   if (surface === "session") {
     return (
       <SessionView
+        date={date}
+        conversation={conversation}
+        onClose={() => setSurface(programReturnSurface)}
+        onOpenThread={() => setSurface("thread")}
+        onOpenProgram={() => {
+          setProgramReturnSurface("session");
+          setSurface("program");
+        }}
+      />
+    );
+  }
+
+  if (surface === "program") {
+    return (
+      <ProgramView
         date={date}
         conversation={conversation}
         onClose={() => setSurface("today")}
