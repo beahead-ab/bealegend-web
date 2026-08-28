@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChangeReceipt } from "./ChangeReceipt";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
+import { ProgramView } from "./ProgramView";
 import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
 import {
@@ -382,6 +383,18 @@ export function TodayView({ onSignOut, user, preview }: {
   if (surface === "session") {
     return (
       <SessionView
+        date={date}
+        conversation={conversation}
+        onClose={() => setSurface("today")}
+        onOpenThread={() => setSurface("thread")}
+        onOpenProgram={() => setSurface("program")}
+      />
+    );
+  }
+
+  if (surface === "program") {
+    return (
+      <ProgramView
         date={date}
         conversation={conversation}
         onClose={() => setSurface("today")}

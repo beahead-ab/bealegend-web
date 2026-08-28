@@ -111,6 +111,15 @@ export type TrainingHome = {
    *  surface offering a start it already knows would be refused. */
   active_run: TrainingRun | null;
   active_session: TrainingSession | null;
+  /**
+   * Programmet användaren följer, eller null när hen inte följer något.
+   *
+   * Nullbart och valfritt: fältet har funnits i kontraktet sedan
+   * programsidans fakta kom, men den här klienten läste det inte förrän nu.
+   */
+  assigned_program?: TrainingProgramSummary | null;
+  /** Programmen som går att välja. Tom lista är ett giltigt svar. */
+  available_programs?: TrainingProgramSummary[];
 };
 
 export function fetchTrainingHome(date: Date): Promise<TrainingHome> {
@@ -344,4 +353,202 @@ export function sharedRest(sets: PrescribedSet[]): PrescribedSet | null {
     set.rest_seconds === first.rest_seconds
     && (set.rest_seconds_max ?? null) === (first.rest_seconds_max ?? null));
   return same ? first : null;
+}
+
+/**
+ * En period i bågen — `grund`, `uppbyggnad`, `avlastning`, `topp` eller
+ * `test`, med sitt veckospann.
+ *
+ * Veckorna är ettbaserade och inklusiva: kontraktet talar med ytan, och ytan
+ * skriver »vecka 1–4«.
+ */
+export type TrainingProgramPeriod = {
+  name: string;
+  role: string | null;
+  start_week: number;
+  end_week: number;
+};
+
+/**
+ * En vecka i belastningskurvan.
+ *
+ * [relative_load] är veckans tyngd i förhållande till programmets tyngsta
+ * vecka, 0–1. Relativt med flit: den absoluta vikten beror på vem som tränar,
+ * men *formen* på programmet är densamma för alla — och det är formen bilden
+ * visar. Klienten räknar inte om den till kilon.
+ */
+export type ProgressionWeek = {
+  week_index: number;
+  relative_load: number;
+  role: string | null;
+  is_deload: boolean;
+  is_test: boolean;
+};
+
+/**
+ * Programmet som programsidan ritar det.
+ *
+ * Varje fakta här är **uträknad på servern** ur det som redan finns: pass per
+ * vecka ur schemaraderna, passlängden ur ordinationen, utrustningen som
+ * unionen över programmets övningar, bilden vald mellan uppladdning och
+ * klippets stillbild. Att räkna om något av det här hade gett två ytor som
+ * beskriver samma program olika.
+ */
+export type TrainingProgramSummary = {
+  id: string;
+  title: string;
+  summary: string;
+  weeks: number;
+  starts_on?: string | null;
+  sessions_per_week?: number | null;
+  session_seconds_min?: number | null;
+  session_seconds_max?: number | null;
+  equipment?: string[];
+  reasons?: string[];
+  level?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+  periods?: TrainingProgramPeriod[];
+  progression?: ProgressionWeek[];
+};
+
+/** »12 veckor«, och »1 vecka« när det är en. */
+export function weeksLabel(weeks: number): string {
+  return weeks === 1 ? "1 vecka" : `${number(weeks)} veckor`;
+}
+
+/**
+ * »3 pass i veckan«, och »3,5 pass i veckan« för ett program som inte går jämnt
+ * upp. Halvtalet är sant — ett program med sju pass på två veckor är just
+ * 3,5 — och att avrunda det hade sagt fel om varannan vecka.
+ */
+export function sessionsPerWeekLabel(sessions: number | null | undefined): string | null {
+  if (sessions == null || sessions <= 0) return null;
+  return `${number(sessions)} pass i veckan`;
+}
+
+/**
+ * »ca 45–60 min«, eller »ca 50 min« när alla pass är lika långa.
+ *
+ * Ett spann där golv och tak möts är en punkt, precis som i ordinationen —
+ * »45–45 min« hade fått en säker siffra att se osäker ut. Och det är ett »ca«:
+ * talet är serverns uppskattning ur ordinationen, inte en mätning.
+ */
+export function sessionLengthLabel(
+  minSeconds: number | null | undefined,
+  maxSeconds: number | null | undefined,
+): string | null {
+  if (minSeconds == null || minSeconds <= 0) return null;
+  const floor = Math.round(minSeconds / 60);
+  const ceiling = maxSeconds != null && maxSeconds > minSeconds ? Math.round(maxSeconds / 60) : null;
+  if (ceiling === null || ceiling <= floor) return `ca ${number(floor)} min`;
+  return `ca ${number(floor)}–${number(ceiling)} min`;
+}
+
+/**
+ * Utrustningen, som servern skrev den.
+ *
+ * Orden översätts inte. `equipment` är fritext i innehållsmodellen — seeden
+ * bär `barbell`, adminlådan skriver »Skivstång« — och en översättningstabell
+ * här hade tystnat första gången Caesar skrev ett ord den inte kände till, och
+ * då visat ordet på engelska bredvid fem på svenska. Vokabulären stängs i
+ * innehållet, inte i ritaren.
+ */
+export function equipmentLabel(equipment: string[] | undefined): string | null {
+  const items = (equipment ?? []).filter((item) => item.trim() !== "");
+  return items.length > 0 ? items.join(" · ") : null;
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  grund: "Grund",
+  uppbyggnad: "Uppbyggnad",
+  avlastning: "Avlastning",
+  topp: "Topp",
+  test: "Test",
+};
+
+/** Rollens namn med versal, eller null när perioden inte har någon roll. */
+export function roleLabel(role: string | null | undefined): string | null {
+  if (!role) return null;
+  return ROLE_LABEL[role] ?? role;
+}
+
+/**
+ * Periodens rubrik: coachens eget namn när hen gett ett, annars rollens.
+ *
+ * Null när hen gett ingetdera — en namnlös period utan roll är ett veckospann
+ * och inget mer, och att skriva »Period 2« hade varit ett namn vi hittat på.
+ */
+export function periodTitle(period: TrainingProgramPeriod): string | null {
+  return period.name.trim() !== "" ? period.name : roleLabel(period.role);
+}
+
+/** »vecka 1–4«, eller »vecka 3« när perioden är en enda vecka. */
+export function periodWeeks(period: TrainingProgramPeriod): string {
+  return period.start_week === period.end_week
+    ? `vecka ${number(period.start_week)}`
+    : `vecka ${number(period.start_week)}–${number(period.end_week)}`;
+}
+
+/** Nivån med versal. Null när coachen inte satt någon — då skriver ytan ingen
+ *  nivå alls, hellre än ett förval som påstår något om någon annans program. */
+export function levelLabel(level: string | null | undefined): string | null {
+  if (!level || level.trim() === "") return null;
+  return level.charAt(0).toUpperCase() + level.slice(1);
+}
+
+/**
+ * Programmets fakta som en rad, i den ordning de svarar på frågan »passar det
+ * här mig?«: hur länge, hur ofta, hur långt varje gång, på vilken nivå.
+ *
+ * Tomma fakta utelämnas i stället för att ritas som streck. En ruta som säger
+ * »–« har lovat ett svar och inte gett något.
+ */
+export function programFacts(program: TrainingProgramSummary): string[] {
+  return [
+    weeksLabel(program.weeks),
+    sessionsPerWeekLabel(program.sessions_per_week),
+    sessionLengthLabel(program.session_seconds_min, program.session_seconds_max),
+    levelLabel(program.level),
+  ].filter((fact): fact is string => fact !== null);
+}
+
+/**
+ * Belastningskurvans höjd för en vecka, i procent.
+ *
+ * Ett golv på fem procent, så att en vecka med mycket låg last fortfarande är
+ * en stapel och inte ett osynligt hål i bågen. Talet är relativt och kommer
+ * från servern; det här skalar bara om det till något som går att rita.
+ */
+export function loadHeight(week: ProgressionWeek): number {
+  const clamped = Math.max(0, Math.min(1, week.relative_load));
+  return Math.round(5 + clamped * 95);
+}
+
+/**
+ * Vad en vecka i kurvan heter när man pekar på den. Rollen först när den finns,
+ * eftersom det är den som förklarar varför veckan är lätt eller tung.
+ */
+export function weekTitle(week: ProgressionWeek): string {
+  const parts = [`Vecka ${number(week.week_index + 1)}`];
+  const role = roleLabel(week.role);
+  // Rollen säger redan »Avlastning« och »Test« när perioden har den. Flaggorna
+  // är för veckor som är lätta eller är test *utan* att perioden heter så — de
+  // lägger till ett ord bara när rollen inte redan sagt det, annars hade
+  // testveckan hetat »Test · Test«.
+  if (role) parts.push(role);
+  else if (week.is_deload) parts.push("Avlastning");
+  if (week.is_test && role !== "Test") parts.push("Test");
+  return parts.join(" · ");
+}
+
+/**
+ * Om veckans nummer ska stå under sin stapel.
+ *
+ * Ett kort program numreras helt: fyra staplar med »1« och »3« under ser ut
+ * som ett urval någon gjort, inte som en skala. Ett långt numreras varannan —
+ * tolv tal i rad läses som en sifferrad i stället för som en tidslinje.
+ */
+export function showsWeekNumber(index: number, total: number): boolean {
+  return total <= 6 || index % 2 === 0;
 }
