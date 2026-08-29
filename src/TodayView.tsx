@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChangeReceipt } from "./ChangeReceipt";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
+import { PlanView } from "./PlanView";
 import { ProgramView } from "./ProgramView";
 import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
@@ -97,6 +98,7 @@ function DayHeader({
   name,
   runActive,
   atFuture,
+  openPlan,
 }: {
   date: Date;
   move: (days: number) => void;
@@ -105,6 +107,7 @@ function DayHeader({
   name: string | null | undefined;
   runActive: boolean;
   atFuture: boolean;
+  openPlan: () => void;
 }) {
   const today = isToday(date);
   return (
@@ -117,6 +120,10 @@ function DayHeader({
       <button className="icon-button" onClick={() => move(-1)} aria-label="Föregående dag"><BackIcon size={16} /></button>
       <button className="icon-button" onClick={() => move(1)} aria-label="Nästa dag" disabled={atFuture}><ChevronIcon size={16} /></button>
       {!today && <button className="pill" onClick={goToToday}>Till idag</button>}
+
+      {/* Idag och Planen är två ytor (beslut #78). Dagen bär vägen dit;
+          Planen bär vägen tillbaka. */}
+      <button className="pill" onClick={openPlan}>Planen</button>
 
       <div className="header-actions">
         <AccountMenu name={name} runActive={runActive} onSignOut={onSignOut} />
@@ -400,6 +407,17 @@ export function TodayView({ onSignOut, user, preview }: {
     );
   }
 
+  if (surface === "plan") {
+    return (
+      <PlanView
+        conversation={conversation}
+        onClose={() => setSurface("today")}
+        onOpenThread={() => setSurface("thread")}
+        onOpenProgram={() => setSurface("program")}
+      />
+    );
+  }
+
   if (surface === "program") {
     return (
       <ProgramView
@@ -421,6 +439,7 @@ export function TodayView({ onSignOut, user, preview }: {
         name={shownDay?.user.first_name}
         runActive={!!activeRun && !isFinished(activeRun)}
         atFuture={atFuture}
+        openPlan={() => setSurface("plan")}
       />
 
       {error && (

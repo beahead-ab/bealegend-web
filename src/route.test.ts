@@ -101,3 +101,11 @@ describe("programytan i adressen", () => {
       .toBe("?d=2026-08-12&v=program");
   });
 });
+
+describe("planytan i adressen", () => {
+  /** Femte ytan. Ordet i länken är svenskt, som de fyra andra. */
+  it("läses och skrivs som ?v=planen", () => {
+    expect(readRoute("?v=planen", WEDNESDAY).surface).toBe("plan");
+    expect(routeSearch({ date: WEDNESDAY, surface: "plan" }, WEDNESDAY)).toBe("?v=planen");
+  });
+});
