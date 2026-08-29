@@ -426,6 +426,7 @@ export function TodayView({ onSignOut, user, preview }: {
         onClose={() => setSurface("today")}
         onOpenThread={() => setSurface("thread")}
         onOpenProgram={() => setSurface("program")}
+        onOpenSession={(day) => go({ date: day, surface: "session" })}
       />
     );
   }

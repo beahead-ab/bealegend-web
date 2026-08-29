@@ -1366,3 +1366,25 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   .plan-day { grid-template-columns: 38px minmax(0, 1fr); }
   .plan-day-state { grid-column: 2; }
 }
+
+/* Passet i planen är en väg in, inte en etikett. Knappen bär inget eget
+   utseende — raden ska läsas som text tills man vill åt den. */
+.plan-session {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+
+.plan-session:hover { text-decoration-color: var(--blue); }
+
+/* Kvittots överhoppade set: samma märkning som i passvyn, så raden läses
+   likadant efteråt som den gjorde under tiden. */
+.set-list li.skipped .set-line { opacity: 0.7; }

@@ -3,6 +3,7 @@ import {
   dayStateLabel,
   isViewedDay,
   loadShare,
+  planDate,
   sessionCount,
   weekPeriod,
   weekStateLabel,
@@ -156,5 +157,19 @@ describe("isViewedDay", () => {
   it("jämför strängar och inte Date-objekt", () => {
     expect(isViewedDay(day("2026-08-26"), plan)).toBe(true);
     expect(isViewedDay(day("2026-08-27"), plan)).toBe(false);
+  });
+});
+
+describe("planDate", () => {
+  /**
+   * Vägen ur planen in i ett pass går genom dagen, så en dag fel öppnar fel
+   * pass. new Date("2026-08-24") är midnatt UTC — alltså den 23:e för alla
+   * väster om den.
+   */
+  it("bygger dagen av delarna, inte ur en UTC-tolkning", () => {
+    const date = planDate("2026-08-24");
+    expect(date.getFullYear()).toBe(2026);
+    expect(date.getMonth()).toBe(7);
+    expect(date.getDate()).toBe(24);
   });
 });
