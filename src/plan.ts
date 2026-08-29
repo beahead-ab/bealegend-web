@@ -181,3 +181,15 @@ export function weekdayLabel(isoDate: string): string {
 export function isViewedDay(day: PlanDay, plan: TrainingPlan): boolean {
   return day.date === plan.viewed_date;
 }
+
+/**
+ * Dagen som ett `Date`, byggt av delarna.
+ *
+ * `new Date("2026-08-24")` är midnatt UTC, alltså dagen innan för alla väster
+ * om den — samma fälla som `route.ts` undviker på samma sätt. Den här används
+ * för att öppna rätt dags pass ur planen, och en dag fel hade öppnat fel pass.
+ */
+export function planDate(isoDate: string): Date {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}

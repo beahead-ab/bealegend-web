@@ -67,6 +67,29 @@ export type RunAction =
   | "complete"
   | "cancel";
 
+/**
+ * Ett set som det faktiskt blev, läst tillbaka från servern.
+ *
+ * Körningen bar länge bara räknare, och klienten kunde därför visa *att* ett
+ * set var klart men inte *vad* som sparades. Listan finns nu i kontraktet, på
+ * samma kornighet som användaren arbetade: `step_id` plus `set_index`.
+ *
+ * Den är serverns svar och inte den här klientens minne — ett pass som börjat
+ * i telefonen och avslutats här bär sina tidigare set i den här listan.
+ */
+export type TrainingRunSetResult = {
+  step_id: string;
+  set_index: number;
+  /** `completed` eller `skipped`. */
+  status: string;
+  repetitions: number | null;
+  weight_kg: number | null;
+  duration_seconds: number | null;
+  distance_meters: number | null;
+  effort_rpe: number | null;
+  completed_at: string;
+};
+
 export type TrainingRun = {
   id: string;
   session_id: string;
@@ -80,6 +103,11 @@ export type TrainingRun = {
   allowed_actions: RunAction[];
   paused_at: string | null;
   accumulated_pause_seconds: number;
+  /**
+   * Vad som loggats under körningen. Tom lista tills något loggats, och
+   * additiv — en klient som inte tittar påverkas inte.
+   */
+  set_results?: TrainingRunSetResult[];
 };
 
 /**
@@ -209,7 +237,14 @@ export function estimateLabel(seconds: number | null): string | null {
   return seconds && seconds > 0 ? `ca ${roughDuration(seconds)}` : null;
 }
 
-function measure(
+/**
+ * Ett mått som en rad: »8 reps«, »45 s«, »400 m«.
+ *
+ * Delad mellan ordinationen och kvittot med flit. Det som skrevs som »8 reps«
+ * före passet ska läsas som »8 reps« efteråt — två formaterare hade skrivit
+ * samma set olika, och just den skillnaden är vad ett kvitto inte får ha.
+ */
+export function measure(
   repetitions: number | null,
   durationSeconds: number | null,
   distanceMeters: number | null,

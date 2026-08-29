@@ -20,6 +20,14 @@ import {
   type TrainingRun,
   type TrainingSession,
 } from "./training";
+import {
+  receiptFrom,
+  receiptHeading,
+  resultFor,
+  setsLine,
+  volumeLine,
+  type Receipt as PassReceipt,
+} from "./receipt";
 import { clockText, setKey, useRun, type LoggedSet } from "./useRun";
 import { BackIcon, ChevronIcon } from "./icons";
 
@@ -116,6 +124,49 @@ function setMark(logged: LoggedSet | undefined): string | null {
   return logged.status === "skipped" ? "Överhoppat" : "Klart";
 }
 
+/**
+ * Kvittot, som passvyn blir när körningen är slut.
+ *
+ * Ordinationen fälls bort: den frågan är besvarad. Kvar står vad som faktiskt
+ * hände, i passets egen ordning.
+ */
+function Receipt({ receipt }: { receipt: PassReceipt }) {
+  const sets = setsLine(receipt);
+  const volume = volumeLine(receipt);
+
+  return (
+    <>
+      <div className="hero">
+        <p>{receiptHeading(receipt)}</p>
+        <span className="hero-rule" aria-hidden="true" />
+      </div>
+
+      <div className="program-facts">
+        <span className="chip">{clockText(receipt.activeSeconds)} aktiv tid</span>
+        {sets && <span className="chip">{sets}</span>}
+        {volume && <span className="chip">{volume}</span>}
+      </div>
+
+      {/* Ett pass utan loggade set får inget kvarto av moment — och ingen tom
+          ruta heller. Tiden och rubriken är då allt som är sant. */}
+      {receipt.moments.map((moment) => (
+        <section className="card" key={moment.stepId}>
+          <h2>{moment.name}</h2>
+          <ol className="set-list">
+            {moment.sets.map((set) => (
+              <li key={set.index} className={set.status === "skipped" ? "skipped" : undefined}>
+                <span className="set-index">{set.index}</span>
+                <span className="set-line">{set.line}</span>
+                {set.status === "skipped" && <span className="set-mark">Överhoppat</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </>
+  );
+}
+
 function Moment({ moment, here, state }: {
   moment: TrainingMoment;
   here: boolean;
@@ -124,6 +175,21 @@ function Moment({ moment, here, state }: {
   // Where the run stands opens itself. Everything else stays folded, so the
   // pass reads as a list until you ask a line to say more.
   const [open, setOpen] = useState(here);
+
+  /**
+   * …och det gäller även när körningen kommer hit efteråt.
+   *
+   * `useState(here)` fångar bara läget vid montering, och vid montering har
+   * passet inte startat: `here` är falskt för varje moment. Utan det här
+   * öppnade »Starta passet« ingenting, och den som just tryckt igång ett pass
+   * fick leta efter setloggaren bakom en hopfälld rad.
+   *
+   * Bara i öppnande riktning. Att fälla ihop momentet igen när körningen går
+   * vidare hade slitit sidan under handen på den som läser föregående moment.
+   */
+  useEffect(() => {
+    if (here) setOpen(true);
+  }, [here]);
   const sets = moment.prescribed_sets;
   const rest = sharedRest(sets);
   const currentSet = here ? sets.find((set) => set.index === state.run?.current_set_index) : undefined;
@@ -144,10 +210,14 @@ function Moment({ moment, here, state }: {
           {sets.length > 0 && (
             <ol className="set-list">
               {sets.map((set) => {
-                // Only what this client logged is marked. The run carries counts,
-                // not a per-set list, so a run picked up from the phone shows its
-                // earlier sets unmarked rather than claimed.
-                const mark = setMark(state.logged[setKey(moment.id, set.index)]);
+
+                // Det egna minnet först — det är omedelbart. Serverns lista
+                // fyller i resten, så ett pass som börjat i telefonen inte
+                // visar sina första set omärkta som om de inte hänt.
+                const logged = state.logged[setKey(moment.id, set.index)];
+                const stored = logged ? undefined : resultFor(state.run, moment.id, set.index);
+                const mark = setMark(logged)
+                  ?? (stored ? (stored.status === "skipped" ? "Överhoppat" : "Klart") : null);
                 const current = here && state.run?.current_set_index === set.index;
                 return (
                   <li key={set.index} className={current ? "current" : undefined}>
@@ -288,6 +358,12 @@ function Session({ session, activeRun }: { session: TrainingSession; activeRun: 
   const estimate = estimateLabel(session.estimated_seconds);
   const state = useRun(session, activeRun);
   const here = state.run?.current_step_id ?? null;
+  const receipt = state.run ? receiptFrom(session, state.run) : null;
+
+  // Kvittot ersätter passvyn i stället för att läggas ovanpå den. Det som
+  // skulle göras är gjort, och att låta ordinationen stå kvar under hade
+  // bjudit in till att logga ett set till i ett pass som är avslutat.
+  if (receipt) return <Receipt receipt={receipt} />;
 
   return (
     <>

@@ -6,6 +6,7 @@ import {
   fetchTrainingPlan,
   isViewedDay,
   loadShare,
+  planDate,
   sessionCount,
   weekPeriod,
   weekStateLabel,
@@ -58,7 +59,11 @@ function Arc({ plan, open, onOpen }: {
 }
 
 /** De sju dagarna, med sitt läge uttalat av servern. */
-function Days({ week, plan }: { week: PlanWeek; plan: TrainingPlan }) {
+function Days({ week, plan, onOpenSession }: {
+  week: PlanWeek;
+  plan: TrainingPlan;
+  onOpenSession: (date: Date) => void;
+}) {
   if (week.days.length === 0) return null;
   return (
     <ol className="plan-days">
@@ -74,9 +79,16 @@ function Days({ week, plan }: { week: PlanWeek; plan: TrainingPlan }) {
                 listan är tom. */}
             {day.sessions.length > 0
               ? day.sessions.map((session) => (
-                <span className="plan-session" key={`${session.routine_revision_id}-${session.title}`}>
+                // Vägen in i passet går genom dagen, eftersom passvyn läser
+                // dagens innehåll. Att skicka passets id hade krävt en andra
+                // väg in för samma sak.
+                <button
+                  className="plan-session"
+                  key={`${session.routine_revision_id}-${session.title}`}
+                  onClick={() => onOpenSession(planDate(day.date))}
+                >
                   {session.title}
-                </span>
+                </button>
               ))
               : <span className="muted">{dayStateLabel(day.state)}</span>}
           </span>
@@ -89,11 +101,12 @@ function Days({ week, plan }: { week: PlanWeek; plan: TrainingPlan }) {
   );
 }
 
-function Week({ week, plan, open, onToggle }: {
+function Week({ week, plan, open, onToggle, onOpenSession }: {
   week: PlanWeek;
   plan: TrainingPlan;
   open: boolean;
   onToggle: () => void;
+  onOpenSession: (date: Date) => void;
 }) {
   const period = weekPeriod(week);
   const sessions = sessionCount(week);
@@ -134,7 +147,7 @@ function Week({ week, plan, open, onToggle }: {
             </div>
           )}
 
-          <Days week={week} plan={plan} />
+          <Days week={week} plan={plan} onOpenSession={onOpenSession} />
         </div>
       )}
     </div>
@@ -163,11 +176,12 @@ function PlanSkeleton() {
  * Varje påstående kommer från `training-plan.v1`: veckans läge, dagens läge,
  * volymen och veckotexten. Ytan väljer ordning och ord.
  */
-export function PlanView({ conversation, onClose, onOpenThread, onOpenProgram }: {
+export function PlanView({ conversation, onClose, onOpenThread, onOpenProgram, onOpenSession }: {
   conversation: Conversation;
   onClose: () => void;
   onOpenThread: () => void;
   onOpenProgram: () => void;
+  onOpenSession: (date: Date) => void;
 }) {
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -250,6 +264,7 @@ export function PlanView({ conversation, onClose, onOpenThread, onOpenProgram }:
                 plan={plan}
                 open={week.week === (open ?? plan.current_week)}
                 onToggle={() => setOpen(week.week === open ? -1 : week.week)}
+                onOpenSession={onOpenSession}
               />
             ))}
           </section>
