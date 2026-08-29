@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
 import { CoachFloor } from "./CoachFloor";
 import type { useConversation } from "./conversation";
+import { isoDate } from "./daily";
 import {
+  assignProgram,
   equipmentLabel,
   fetchTrainingHome,
   loadHeight,
   periodTitle,
   periodWeeks,
+  nextMonday,
+  startDayLabel,
   programFacts,
   showsWeekNumber,
+  switchWarning,
   weekTitle,
+  weeksLabel,
+  type TrainingHome,
   type TrainingProgramSummary,
 } from "./training";
-import { BackIcon } from "./icons";
+import { BackIcon, ChevronIcon } from "./icons";
 
 type Conversation = ReturnType<typeof useConversation>;
 
@@ -130,6 +137,87 @@ function Program({ program }: { program: TrainingProgramSummary }) {
   );
 }
 
+/**
+ * Att börja följa ett program.
+ *
+ * Startdatumet är förvalt till närmaste måndag men går att ändra: ett program
+ * är skrivet i veckor, och ett som börjar på en torsdag ger en första vecka på
+ * fyra dagar. Förval, inte tvång.
+ *
+ * Byter man program står vad som händer **före** knappen. Servern avslutar den
+ * gamla tilldelningen och tar bort kommande pass man inte rört — det är inget
+ * man ska upptäcka efteråt.
+ */
+function Follow({ program, current, onFollowed }: {
+  program: TrainingProgramSummary;
+  current: TrainingProgramSummary | null;
+  onFollowed: (home: TrainingHome) => void;
+}) {
+  const [startsOn, setStartsOn] = useState(() => isoDate(nextMonday(new Date())));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const warning = switchWarning(current, program);
+  const day = startDayLabel(startsOn);
+
+  const follow = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      onFollowed(await assignProgram(program.id, startsOn));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Programmet kunde inte startas.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card">
+      <h2>Följ det här</h2>
+      {warning && <p className="session-notice">{warning}</p>}
+      <label className="start-date">
+        <span className="muted">Börjar</span>
+        <input
+          type="date"
+          value={startsOn}
+          min={isoDate(new Date())}
+          onChange={(event) => setStartsOn(event.target.value)}
+        />
+      </label>
+      {/* Dagen i ord. Fältet ovan ritas i webbläsarens format, inte sidans, och
+          »08/31« går inte att läsa entydigt för den som väntar sig »31/08«. */}
+      {day && <p className="start-day muted">{day}</p>}
+      {error && <p className="error-message" role="status">{error}</p>}
+      <button className="primary-button wide" onClick={() => void follow()} disabled={busy || !startsOn}>
+        {busy ? "Startar …" : "Följ programmet"}
+      </button>
+    </section>
+  );
+}
+
+/** De andra programmen, som rader man kan öppna. */
+function Others({ programs, onOpen }: {
+  programs: TrainingProgramSummary[];
+  onOpen: (id: string) => void;
+}) {
+  if (programs.length === 0) return null;
+  return (
+    <section className="card group-card">
+      <h2>Andra program</h2>
+      {programs.map((program) => (
+        <button className="metric-button" key={program.id} onClick={() => onOpen(program.id)}>
+          <div className="metric-row">
+            <span className="muted">{program.title}</span>
+            {/* Ett fakta räcker i en lista: längden är det man jämför först. */}
+            <strong>{weeksLabel(program.weeks)}</strong>
+            <span className="chevron"><ChevronIcon /></span>
+          </div>
+        </button>
+      ))}
+    </section>
+  );
+}
+
 function ProgramSkeleton() {
   return (
     <>
@@ -152,13 +240,16 @@ function ProgramSkeleton() {
  * uträkning: fälten har legat i `training-home.v1` sedan programmets fakta
  * kom, och den här klienten läste dem bara inte.
  */
-export function ProgramView({ date, conversation, onClose, onOpenThread }: {
+export function ProgramView({ date, programId, conversation, onClose, onOpenThread, onOpenProgram }: {
   date: Date;
+  /** Programmet man tittar på, eller null för det man följer. */
+  programId?: string | null;
   conversation: Conversation;
   onClose: () => void;
   onOpenThread: () => void;
+  onOpenProgram: (id: string | null) => void;
 }) {
-  const [program, setProgram] = useState<TrainingProgramSummary | null>(null);
+  const [home, setHome] = useState<TrainingHome | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -167,20 +258,33 @@ export function ProgramView({ date, conversation, onClose, onOpenThread }: {
     let cancelled = false;
     setError("");
     fetchTrainingHome(date)
-      .then((home) => {
+      .then((result) => {
         if (cancelled) return;
-        setProgram(home.assigned_program ?? null);
+        setHome(result);
         setLoaded(true);
       })
       .catch(() => !cancelled && setError("Programmet kunde inte hämtas just nu."));
     return () => { cancelled = true; };
   }, [date, attempt]);
 
+  const assigned = home?.assigned_program ?? null;
+  const available = home?.available_programs ?? [];
+  // Programmet adressen pekar på, om det finns. Ett id som inte längre går att
+  // välja faller tillbaka på det man följer i stället för på en tom sida.
+  const chosen = programId
+    ? available.find((entry) => entry.id === programId) ?? (assigned?.id === programId ? assigned : null)
+    : null;
+  const program = chosen ?? assigned;
+  const following = program != null && assigned != null && program.id === assigned.id;
+  const others = available.filter((entry) => entry.id !== program?.id);
+
   return (
     <div className="app-shell">
       <header className="thread-header">
-        <button className="thread-back" onClick={onClose}>
-          <BackIcon /> Tillbaka
+        {/* Ur ett program man tittar på går vägen tillbaka till det man följer,
+            inte hela vägen ut. Ett steg i taget, som överallt annars. */}
+        <button className="thread-back" onClick={() => (chosen ? onOpenProgram(null) : onClose())}>
+          <BackIcon /> {chosen ? "Tillbaka" : "Idag"}
         </button>
       </header>
 
@@ -196,14 +300,34 @@ export function ProgramView({ date, conversation, onClose, onOpenThread }: {
       {/* Inget program är inte ett fel, och inte ett tomt skal heller. Meningen
           säger vad läget är; att välja ett program är en egen yta som inte
           finns än, och en knapp hit hade lovat en väg som inte går någonstans. */}
+      {/* Inget program följt och inget valt: meningen, och sedan listan. Utan
+          program att välja bland är meningen allt som är sant. */}
       {loaded && !program && (
         <div className="hero">
-          <p>Du följer inget program just nu.</p>
+          <p>
+            {available.length > 0
+              ? "Du följer inget program just nu. Välj ett nedan."
+              : "Du följer inget program just nu."}
+          </p>
           <span className="hero-rule" aria-hidden="true" />
         </div>
       )}
 
       {program && <Program program={program} />}
+
+      {/* Följ-panelen bara för ett program man inte redan följer. */}
+      {program && !following && (
+        <Follow
+          program={program}
+          current={assigned}
+          onFollowed={(next) => {
+            setHome(next);
+            onOpenProgram(null);
+          }}
+        />
+      )}
+
+      {loaded && <Others programs={others} onOpen={onOpenProgram} />}
 
       <CoachFloor conversation={conversation} onOpenThread={onOpenThread} inThread={false} />
     </div>

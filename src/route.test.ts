@@ -109,3 +109,34 @@ describe("planytan i adressen", () => {
     expect(routeSearch({ date: WEDNESDAY, surface: "plan" }, WEDNESDAY)).toBe("?v=planen");
   });
 });
+
+describe("programmet i adressen", () => {
+  /**
+   * Ett program man överväger ska gå att skicka till någon annan — det är hela
+   * poängen med att ha en sida för det.
+   */
+  it("bärs som ?p= på programytan", () => {
+    expect(readRoute("?v=program&p=abc", WEDNESDAY).program).toBe("abc");
+    expect(routeSearch({ date: WEDNESDAY, surface: "program", program: "abc" }, WEDNESDAY))
+      .toBe("?v=program&p=abc");
+  });
+
+  it("skrivs inte på andra ytor", () => {
+    // Ett program-id i adressen till Idag hade sagt något om en yta som inte
+    // visar något program.
+    expect(routeSearch({ date: WEDNESDAY, surface: "today", program: "abc" }, WEDNESDAY)).toBe("");
+    expect(routeSearch({ date: WEDNESDAY, surface: "pass" as never, program: "abc" }, WEDNESDAY))
+      .not.toContain("p=abc");
+  });
+
+  it("skiljer två program åt, så bakåtknappen fungerar mellan dem", () => {
+    expect(sameRoute(
+      { date: WEDNESDAY, surface: "program", program: "a" },
+      { date: WEDNESDAY, surface: "program", program: "b" },
+    )).toBe(false);
+    expect(sameRoute(
+      { date: WEDNESDAY, surface: "program", program: "a" },
+      { date: WEDNESDAY, surface: "program", program: "a" },
+    )).toBe(true);
+  });
+});

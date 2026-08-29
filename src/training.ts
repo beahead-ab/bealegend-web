@@ -587,3 +587,73 @@ export function weekTitle(week: ProgressionWeek): string {
 export function showsWeekNumber(index: number, total: number): boolean {
   return total <= 6 || index % 2 === 0;
 }
+
+/**
+ * Att följa ett program.
+ *
+ * Servern svarar med hela dagskontraktet, så ytan behöver inte hämta om något
+ * efteråt — den läser svaret.
+ */
+export function assignProgram(programId: string, startsOn: string): Promise<TrainingHome> {
+  return request<TrainingHome>("/api/v1/training/assignments", {
+    method: "POST",
+    body: JSON.stringify({ program_id: programId, starts_on: startsOn }),
+  });
+}
+
+/**
+ * Måndagen programmet rimligen börjar.
+ *
+ * Ett program är skrivet i veckor, och ett som börjar på en torsdag ger en
+ * första vecka på fyra dagar — vilket ser ut som att man missat tre pass innan
+ * man börjat. Måndag är därför förvalet, inte tvånget: den som vill börja i
+ * dag får det.
+ *
+ * Är det redan måndag är det i dag som gäller. Att skjuta en vecka framåt hade
+ * varit att svara på en fråga ingen ställde.
+ */
+export function nextMonday(from: Date): Date {
+  const day = from.getDay();
+  const ahead = day === 1 ? 0 : (8 - day) % 7;
+  const date = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  date.setDate(date.getDate() + ahead);
+  return date;
+}
+
+/**
+ * Vad som händer med det man följer i dag, sagt innan det sker.
+ *
+ * Servern avslutar den gamla tilldelningen och tar bort de framtida pass som
+ * ingen rört, från startdatumet och framåt. Det som redan är gjort står kvar.
+ * Den meningen ska stå *före* knappen, inte upptäckas efteråt.
+ *
+ * Null när ingenting går förlorat: inget program följs, eller så är det samma
+ * program som redan följs.
+ */
+export function switchWarning(
+  current: TrainingProgramSummary | null | undefined,
+  next: TrainingProgramSummary,
+): string | null {
+  if (!current || current.id === next.id) return null;
+  return `Du följer ${current.title}. Byter du avslutas det, och kommande pass `
+    + "som du inte rört tas bort. Det du redan gjort står kvar.";
+}
+
+/**
+ * Startdagen i ord: »måndag 31 augusti«.
+ *
+ * Webbläsarens datumfält ritar sitt format efter *webbläsarens* språk, inte
+ * efter sidans — en svensk användare med engelskt system ser 08/31/2026, och
+ * för varje dag i månaden till och med den tolfte går det inte att veta om det
+ * är dag eller månad först. Fältet står kvar, eftersom det är den väljare
+ * användaren redan kan, och raden bredvid säger vilken dag som valdes.
+ */
+export function startDayLabel(isoDate: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return null;
+  const [year, month, day] = isoDate.split("-").map(Number);
+  // Byggt av delarna, som överallt annars: midnatt UTC är gårdagen väster om
+  // Greenwich, och ett startdatum en dag fel är en hel vecka fel i schemat.
+  const date = new Date(year, month - 1, day);
+  if (date.getMonth() !== month - 1) return null;
+  return date.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" });
+}

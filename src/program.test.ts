@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   equipmentLabel,
   levelLabel,
+  nextMonday,
   loadHeight,
   periodTitle,
   periodWeeks,
@@ -9,8 +10,10 @@ import {
   roleLabel,
   sessionLengthLabel,
   sessionsPerWeekLabel,
+  switchWarning,
   weekTitle,
   showsWeekNumber,
+  startDayLabel,
   weeksLabel,
   type ProgressionWeek,
   type TrainingProgramPeriod,
@@ -216,5 +219,85 @@ describe("showsWeekNumber", () => {
 
   it("glesar ut när programmet är långt", () => {
     expect([0, 1, 2, 3].map((i) => showsWeekNumber(i, 12))).toEqual([true, false, true, false]);
+  });
+});
+
+describe("nextMonday", () => {
+  /**
+   * Ett program är skrivet i veckor. Ett som börjar på en torsdag ger en första
+   * vecka på fyra dagar, vilket ser ut som tre missade pass innan man börjat.
+   */
+  it("hittar den kommande måndagen", () => {
+    // 2026-08-29 är en lördag → 31 aug.
+    expect(nextMonday(new Date(2026, 7, 29)).getDate()).toBe(31);
+    // Söndag → dagen efter.
+    expect(nextMonday(new Date(2026, 7, 30)).getDate()).toBe(31);
+    // Tisdag → nästa vecka.
+    expect(nextMonday(new Date(2026, 8, 1)).getDate()).toBe(7);
+  });
+
+  it("stannar på i dag när det redan är måndag", () => {
+    // Att skjuta en vecka framåt hade svarat på en fråga ingen ställde.
+    const monday = new Date(2026, 7, 31);
+    expect(nextMonday(monday).getDate()).toBe(31);
+  });
+
+  it("lämnar den inkommande dagen orörd", () => {
+    const day = new Date(2026, 7, 29);
+    nextMonday(day);
+    expect(day.getDate()).toBe(29);
+  });
+
+  it("nollställer tiden på dygnet", () => {
+    // Ett startdatum är en dag, inte ett ögonblick.
+    const from = new Date(2026, 7, 29, 23, 47, 12);
+    const monday = nextMonday(from);
+    expect([monday.getHours(), monday.getMinutes(), monday.getSeconds()]).toEqual([0, 0, 0]);
+  });
+});
+
+describe("switchWarning", () => {
+  const other = (id: string, title: string): TrainingProgramSummary =>
+    program({ id, title, summary: "" });
+
+  /**
+   * Servern avslutar den gamla tilldelningen och tar bort kommande orörda pass.
+   * Den meningen ska stå före knappen, inte upptäckas efteråt.
+   */
+  it("säger vad som går förlorat innan man byter", () => {
+    const warning = switchWarning(other("p1", "Grundstyrka"), other("p2", "Maraton"))!;
+    expect(warning).toContain("Grundstyrka");
+    expect(warning).toContain("avslutas");
+    expect(warning).toContain("Det du redan gjort står kvar");
+  });
+
+  it("varnar inte när ingenting går förlorat", () => {
+    // Inget program följs, eller samma program: ingen varning att ge.
+    expect(switchWarning(null, other("p1", "Grundstyrka"))).toBeNull();
+    expect(switchWarning(undefined, other("p1", "Grundstyrka"))).toBeNull();
+    expect(switchWarning(other("p1", "Grundstyrka"), other("p1", "Grundstyrka"))).toBeNull();
+  });
+});
+
+describe("startDayLabel", () => {
+  /**
+   * Webbläsarens datumfält ritar sitt format efter webbläsarens språk, inte
+   * sidans. En svensk användare med engelskt system ser 08/31/2026, och till
+   * och med den tolfte i månaden går det inte att veta vad som är dag.
+   */
+  it("skriver dagen i ord", () => {
+    expect(startDayLabel("2026-08-31")).toBe("måndag 31 augusti");
+  });
+
+  it("bygger dagen av delarna, inte ur en UTC-tolkning", () => {
+    // Ett startdatum en dag fel är en hel vecka fel i schemat.
+    expect(startDayLabel("2026-08-24")).toContain("24 augusti");
+  });
+
+  it("säger ingenting om något som inte är ett datum", () => {
+    expect(startDayLabel("")).toBeNull();
+    expect(startDayLabel("2026-8-3")).toBeNull();
+    // Konstruktorn rullar över i stället för att vägra: 31 februari blir mars.
+    expect(startDayLabel("2026-02-31")).toBeNull();
   });
 });

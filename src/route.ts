@@ -2,7 +2,18 @@ import { isoDate } from "./daily";
 
 export type Surface = "today" | "session" | "thread" | "program" | "plan";
 
-export type Route = { date: Date; surface: Surface };
+export type Route = {
+  date: Date;
+  surface: Surface;
+  /**
+   * Programmet man tittar på, när det inte är det man följer.
+   *
+   * Bara meningsfullt på programytan. Adressen bär det så att ett program man
+   * överväger går att skicka till någon annan — vilket är hela poängen med att
+   * ha en sida för det.
+   */
+  program?: string | null;
+};
 
 /**
  * The surface as it is written in a link. Swedish, because these end up pasted
@@ -41,6 +52,7 @@ export function readRoute(search: string, today: Date = new Date()): Route {
   return {
     date: dateFrom(params.get("d")) ?? today,
     surface: PARAM_SURFACE[params.get("v") ?? ""] ?? "today",
+    program: params.get("p"),
   };
 }
 
@@ -53,10 +65,15 @@ export function routeSearch(route: Route, today: Date = new Date()): string {
   const params = new URLSearchParams();
   if (isoDate(route.date) !== isoDate(today)) params.set("d", isoDate(route.date));
   if (route.surface !== "today") params.set("v", SURFACE_PARAM[route.surface]);
+  // Bara på programytan. Ett program-id i adressen till Idag hade sagt något
+  // om en yta som inte visar något program.
+  if (route.surface === "program" && route.program) params.set("p", route.program);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
 
 export function sameRoute(a: Route, b: Route): boolean {
-  return a.surface === b.surface && isoDate(a.date) === isoDate(b.date);
+  return a.surface === b.surface
+    && isoDate(a.date) === isoDate(b.date)
+    && (a.program ?? null) === (b.program ?? null);
 }
