@@ -1,4 +1,5 @@
 import { ChevronIcon } from "./icons";
+import { countdownBand, countdownChoices, reachedLine } from "./countdown";
 import { hoursAndMinutes, type CountdownStatus, type ListItem, type RangeReading, type SeriesPoint } from "./dashboard";
 
 /** A home surface is not a workspace (DASHBOARD_LANGUAGE.md). A list that grows
@@ -472,10 +473,73 @@ function amount(value: number, unit?: string): string {
  * is explicit that the date must not slip by in silence, so the widget stays
  * and reports rather than quietly resetting itself.
  */
-export function Countdown({ status, unit, hero = false }: {
+/**
+ * Prognosen som ett band på en tidslinje.
+ *
+ * Bandet går från den tidigaste till den senaste ankomsten servern räknat
+ * fram, och måldatumet står som ett streck. Ligger bandet efter strecket är
+ * det den varningen figuren finns till för — därför klipps spåret inte vid
+ * måldatumet.
+ *
+ * **Bandet smalnar av sig självt** när de två pacefönstren närmar sig
+ * varandra. En kil som avsmalnade oavsett talen hade sett säkrare ut mot
+ * slutet även när mätningarna spretade mer än någonsin.
+ */
+function ArrivalBand({ status }: { status: CountdownStatus }) {
+  const band = countdownBand(status);
+  if (!band) return null;
+  return (
+    <div className="arrival" role="presentation">
+      <span className="arrival-track" />
+      <span
+        className={band.late ? "arrival-band late" : "arrival-band"}
+        style={{ left: `${band.start}%`, width: `${band.width}%` }}
+      />
+      <span className="arrival-deadline" style={{ left: `${band.deadline}%` }} />
+    </div>
+  );
+}
+
+/**
+ * Kvittot efter datumet.
+ *
+ * Tre vägar vidare, och ingen av dem utförs här: varje val lägger sin mening
+ * i samtalet och öppnar tråden. Samtalet är editorn (`DB-01`), och en knapp
+ * som tyst skrev om ett mål hade ändrat något användaren inte hunnit läsa.
+ */
+function AfterTheDate({ status, unit, subject, onAsk }: {
+  status: CountdownStatus;
+  unit?: string;
+  subject?: string;
+  onAsk?: (sentence: string) => void;
+}) {
+  const reached = reachedLine(status, unit);
+  if (!onAsk) {
+    // Utan väg till samtalet erbjuds inga val — en knapp som inte leder
+    // någonstans är sämre än ingen knapp.
+    return reached ? <p className="range-caption muted">Du landade på {reached}.</p> : null;
+  }
+  return (
+    <>
+      {reached && <p className="range-caption muted">Du landade på {reached}.</p>}
+      <div className="countdown-choices">
+        {countdownChoices(status, subject).map((choice) => (
+          <button className="pill" key={choice.label} onClick={() => onAsk(choice.sentence)}>
+            {choice.label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function Countdown({ status, unit, hero = false, subject, onAsk }: {
   status: CountdownStatus;
   unit?: string;
   hero?: boolean;
+  /** Ordet målet mäter — »Vikten«. Se countdownChoices. */
+  subject?: string;
+  onAsk?: (sentence: string) => void;
 }) {
   const days = status.days_left;
   const passed = status.status === "passed";
@@ -524,9 +588,8 @@ export function Countdown({ status, unit, hero = false }: {
           </div>
         )}
       </dl>
-      {passed && (
-        <p className="range-caption muted">Säg till i samtalet om du vill sätta ett nytt datum.</p>
-      )}
+      {!passed && <ArrivalBand status={status} />}
+      {passed && <AfterTheDate status={status} unit={unit} subject={subject} onAsk={onAsk} />}
       {status.status === "no_measurements" && (
         <p className="range-caption muted">Ingen mätning att räkna takt ur än.</p>
       )}

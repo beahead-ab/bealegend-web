@@ -231,6 +231,18 @@ export function TodayView({ onSignOut, user, preview }: {
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation();
+
+  /**
+   * En yta som vill be om något lägger meningen i samtalet och öppnar tråden.
+   *
+   * Skickar aldrig själv. Användaren läser vad som står och trycker — det är
+   * skillnaden mellan ett förslag och en handling någon annan utförde i ens
+   * namn.
+   */
+  const askInThread = (sentence: string) => {
+    conversation.setDraft(sentence);
+    setSurface("thread");
+  };
   const [overview, setOverview] = useState<DailyOverview | null>(preview ?? null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
   const [resources, setResources] = useState<Record<string, DashboardResource>>({});
@@ -513,6 +525,7 @@ export function TodayView({ onSignOut, user, preview }: {
                       countdowns={config?.countdowns ?? []}
                       openTraining={() => setSurface("session")}
                       runningLabel={runningLabel}
+                      onAsk={askInThread}
                     />
                   )
                 ))}
@@ -609,17 +622,19 @@ function DaySkeleton() {
  * never arrived — is a heading over nothing, which reads as a surface that
  * broke rather than one that is honest about what it does not know.
  */
-function Card({ section, overview, resources, countdowns, openTraining, runningLabel }: {
+function Card({ section, overview, resources, countdowns, openTraining, runningLabel, onAsk }: {
   section: DashboardSection;
   overview: DailyOverview;
   resources: Record<string, DashboardResource>;
   countdowns: CountdownStatus[];
   openTraining: () => void;
   runningLabel: string;
+  /** Vägen till samtalet för en ruta som vill be om något. Se askInThread. */
+  onAsk: (sentence: string) => void;
 }) {
   const drawn = section.widgets
     .map((widget) => {
-      const body = drawWidget(widget, overview, resources, countdowns, openTraining, runningLabel, section.hero);
+      const body = drawWidget(widget, overview, resources, countdowns, openTraining, runningLabel, onAsk, section.hero);
       return body === null ? null : <div key={widget.binding}>{body}</div>;
     })
     .filter((node) => node !== null);
@@ -648,6 +663,7 @@ function drawWidget(
   countdowns: CountdownStatus[],
   openTraining: () => void,
   runningLabel: string,
+  onAsk: (sentence: string) => void,
   hero = false,
 ) {
   const word = WORDS[widget.binding];
@@ -676,7 +692,9 @@ function drawWidget(
       // The unit belongs to the word being measured — "4" is not an answer to
       // how much is left, and only the measured word knows it is kilos.
       const unit = widget.measure ? WORDS[widget.measure]?.unit : undefined;
-      return <Countdown status={status} unit={unit} hero={hero} />;
+      // Och ordet självt, så att kvittots meningar säger vilket mål de rör.
+      const subject = widget.measure ? WORDS[widget.measure]?.title : undefined;
+      return <Countdown status={status} unit={unit} subject={subject} hero={hero} onAsk={onAsk} />;
     }
     case "ring": {
       const progress = word.progress?.(overview);

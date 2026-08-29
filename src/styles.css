@@ -1388,3 +1388,53 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 /* Kvittots överhoppade set: samma märkning som i passvyn, så raden läses
    likadant efteråt som den gjorde under tiden. */
 .set-list li.skipped .set-line { opacity: 0.7; }
+
+/* Nedräkningens band.
+   Spåret går från idag till det som ligger sist av måldatumet och prognosens
+   slut. Ett band som pekar förbi datumet ska synas göra det — därför klipps
+   spåret inte vid strecket. */
+.arrival {
+  position: relative;
+  height: 10px;
+  margin: 10px 0 2px;
+}
+
+.arrival-track {
+  position: absolute;
+  inset: 4px 0 auto 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.arrival-band {
+  position: absolute;
+  top: 2px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  border: 1px solid var(--blue);
+  /* Ett band utan bredd är två eniga fönster, alltså ett skarpt svar. Det
+     ritas som en linje och inte som ingenting. */
+  min-width: 2px;
+}
+
+/* Hela prognosen efter måldatumet: figurens enda varning, och den ska synas. */
+.arrival-band.late { background: var(--error-canvas); border-color: var(--error-line); }
+
+.arrival-deadline {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.countdown-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
