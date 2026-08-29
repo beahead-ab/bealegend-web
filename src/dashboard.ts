@@ -464,6 +464,45 @@ export function hiddenCount(widgets: DashboardWidget[]): number {
  * would quietly undo "lägg träningen överst": the row would move and the card
  * would stay put.
  */
+/**
+ * Näringen ritas som **en** modul, inte som en per ruta.
+ *
+ * Modulen visar hela dagens näring — kalorierna, makrona och måltiderna — och
+ * inte den enskilda widget som råkade utlösa den. Två näringsord i
+ * konfigurationen gav därför två identiska moduler efter varandra, med
+ * rubriken »NÄRING« två gånger.
+ *
+ * Det syns så fort ett av orden är stort: [sections] låter en hero stå ensam,
+ * och nästa näringsord hamnar då i en egen sektion. Den som skrivit »gör
+ * kalorierna stora« fick alltså sin dag ritad dubbelt.
+ *
+ * Sektionerna slås ihop till den första, med orden i behåll — `bindings`
+ * avgör om vattnet visas, och att tappa den andra sektionens ord hade tagit
+ * bort vattnet för den som bett om det.
+ */
+export function mergeNutrition(sections: DashboardSection[]): DashboardSection[] {
+  const result: DashboardSection[] = [];
+  let nutrition: DashboardSection | null = null;
+  for (const section of sections) {
+    if (section.group !== NUTRITION_GROUP) {
+      result.push(section);
+      continue;
+    }
+    if (nutrition) {
+      nutrition.widgets = [...nutrition.widgets, ...section.widgets];
+      continue;
+    }
+    // Kopieras i stället för att muteras: den inkommande listan hör till den
+    // som byggde den.
+    nutrition = { ...section, widgets: [...section.widgets] };
+    result.push(nutrition);
+  }
+  return result;
+}
+
+/** Gruppen som ritas av sin egen modul. Se [mergeNutrition]. */
+export const NUTRITION_GROUP = "Näring";
+
 export function sections(widgets: DashboardWidget[]): DashboardSection[] {
   const result: DashboardSection[] = [];
   for (const widget of widgets) {

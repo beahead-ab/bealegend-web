@@ -11,8 +11,10 @@ import {
   fetchDashboardList,
   fetchDashboardSeries,
   hiddenCount,
+  NUTRITION_GROUP,
   resourceKey,
   resourceWidgets,
+  mergeNutrition,
   sections,
   visibleWidgets,
   WORDS,
@@ -388,7 +390,8 @@ export function TodayView({ onSignOut, user, preview }: {
 
   // Six things, then a word. The configuration may hold eight; a home screen
   // that opens with all of them is the crowding §6 removed.
-  const configured = config ? sections(visibleWidgets(config.widgets, expanded)) : [];
+  // Näringen slås ihop till en modul innan något ritas. Se mergeNutrition.
+  const configured = config ? mergeNutrition(sections(visibleWidgets(config.widgets, expanded))) : [];
   const behindMore = config ? hiddenCount(config.widgets) : 0;
   // The built-in surface always carries Träning, so a day with no configuration
   // still has a session to promise. Claiming one the surface does not show
@@ -494,7 +497,7 @@ export function TodayView({ onSignOut, user, preview }: {
             ? (
               <>
                 {configured.map((section) => (
-                  section.group === "Näring" ? (
+                  section.group === NUTRITION_GROUP ? (
                     <NutritionModule
                       key={`${section.group}-${section.widgets[0].binding}`}
                       overview={shownDay}

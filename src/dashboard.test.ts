@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  WORDS,
   canRender,
   hiddenCount,
+  mergeNutrition,
   resourceWidgets,
   sections,
-  visibleWidgets,
-  windowScopes,
-  WORDS,
   type DashboardList,
   type DashboardSeries,
   type DashboardWidget,
+  visibleWidgets,
+  windowScopes,
 } from "./dashboard";
 import type { DailyOverview } from "./daily";
 
@@ -417,5 +418,60 @@ describe("hero", () => {
     expect(result).toHaveLength(3);
     expect(result[1].hero).toBe(true);
     expect(result[0].hero).toBe(false);
+  });
+});
+
+describe("mergeNutrition", () => {
+  const widget = (binding: string, size = "small"): DashboardWidget => ({
+    binding, scope: "today", presentation: "metricRow", size,
+  });
+
+  /**
+   * Näringsmodulen ritar hela dagens näring, inte den widget som utlöste den.
+   * Två näringssektioner gav därför två identiska moduler efter varandra —
+   * med rubriken NÄRING två gånger.
+   */
+  it("slår ihop två näringssektioner till en", () => {
+    // Precis det som händer när ett näringsord är stort: en hero står ensam,
+    // och nästa näringsord hamnar i en egen sektion.
+    const split = sections([widget("daily.energyBudget", "large"), widget("daily.protein")]);
+    expect(split).toHaveLength(2);
+    const merged = mergeNutrition(split);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].widgets.map((w) => w.binding))
+      .toEqual(["daily.energyBudget", "daily.protein"]);
+  });
+
+  it("behåller orden, så att vattnet inte tappas", () => {
+    // bindings avgör om vattnet visas. Att slänga den andra sektionens ord
+    // hade tagit bort vattnet för den som bett om det.
+    const merged = mergeNutrition(sections([
+      widget("daily.energyBudget", "large"),
+      widget("daily.water"),
+    ]));
+    expect(merged[0].widgets.some((w) => w.binding === "daily.water")).toBe(true);
+  });
+
+  it("rör inte andra grupper", () => {
+    const split = sections([widget("training.todaySession"), widget("daily.protein")]);
+    expect(mergeNutrition(split).map((s) => s.group)).toEqual(split.map((s) => s.group));
+  });
+
+  it("håller näringen kvar där den första sektionen stod", () => {
+    // Ordningen är användarens. Att flytta näringen först hade tyst gjort om
+    // "lägg träningen överst".
+    const merged = mergeNutrition(sections([
+      widget("training.todaySession"),
+      widget("daily.energyBudget", "large"),
+      widget("daily.protein"),
+    ]));
+    expect(merged.map((s) => s.group)).toEqual(["Träning", "Näring"]);
+  });
+
+  it("lämnar den inkommande listan orörd", () => {
+    const split = sections([widget("daily.energyBudget", "large"), widget("daily.protein")]);
+    const before = split.map((s) => s.widgets.length);
+    mergeNutrition(split);
+    expect(split.map((s) => s.widgets.length)).toEqual(before);
   });
 });
