@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChangeReceipt } from "./ChangeReceipt";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
+import { PlanView } from "./PlanView";
 import { ProgramView } from "./ProgramView";
 import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
@@ -97,6 +98,7 @@ function DayHeader({
   name,
   runActive,
   atFuture,
+  openPlan,
 }: {
   date: Date;
   move: (days: number) => void;
@@ -105,6 +107,7 @@ function DayHeader({
   name: string | null | undefined;
   runActive: boolean;
   atFuture: boolean;
+  openPlan: () => void;
 }) {
   const today = isToday(date);
   return (
@@ -117,6 +120,10 @@ function DayHeader({
       <button className="icon-button" onClick={() => move(-1)} aria-label="Föregående dag"><BackIcon size={16} /></button>
       <button className="icon-button" onClick={() => move(1)} aria-label="Nästa dag" disabled={atFuture}><ChevronIcon size={16} /></button>
       {!today && <button className="pill" onClick={goToToday}>Till idag</button>}
+
+      {/* Idag och Planen är två ytor (beslut #78). Dagen bär vägen dit;
+          Planen bär vägen tillbaka. */}
+      <button className="pill" onClick={openPlan}>Planen</button>
 
       <div className="header-actions">
         <AccountMenu name={name} runActive={runActive} onSignOut={onSignOut} />
@@ -209,8 +216,15 @@ export function TodayView({ onSignOut, user, preview }: {
   const { date, surface } = route;
   const setSurface = (next: Surface) => go({ ...route, surface: next });
   const setDate = (next: Date) => go({ ...route, date: next });
-  // A directly opened/reloaded program has no parent and closes to today. When
-  // the pass opened it, preserve that one-step context explicitly.
+  /**
+   * Var programsidan stängs till. En direktöppnad eller omladdad programsida
+   * har ingen förälder och stänger till Idag; öppnad ur ett pass stänger den
+   * tillbaka till passet.
+   *
+   * Nollställs när programsidan stängs. Ett returmål som låg kvar efteråt hade
+   * följt med till nästa gång man öppnade ett pass — och då hade passets egen
+   * tillbakaknapp pekat på passet självt, alltså inte gjort någonting.
+   */
   const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session">("today");
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
@@ -350,7 +364,12 @@ export function TodayView({ onSignOut, user, preview }: {
       if (event.key === "ArrowLeft") setDate(addDays(date, -1));
       if (event.key === "ArrowRight" && !atFuture) setDate(addDays(date, 1));
       if (event.key === "Escape" && surface !== "today") {
-        setSurface(surface === "program" ? programReturnSurface : "today");
+        if (surface === "program") {
+          setSurface(programReturnSurface);
+          setProgramReturnSurface("today");
+        } else {
+          setSurface("today");
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -390,7 +409,7 @@ export function TodayView({ onSignOut, user, preview }: {
       <SessionView
         date={date}
         conversation={conversation}
-        onClose={() => setSurface(programReturnSurface)}
+        onClose={() => setSurface("today")}
         onOpenThread={() => setSurface("thread")}
         onOpenProgram={() => {
           setProgramReturnSurface("session");
@@ -400,12 +419,26 @@ export function TodayView({ onSignOut, user, preview }: {
     );
   }
 
+  if (surface === "plan") {
+    return (
+      <PlanView
+        conversation={conversation}
+        onClose={() => setSurface("today")}
+        onOpenThread={() => setSurface("thread")}
+        onOpenProgram={() => setSurface("program")}
+      />
+    );
+  }
+
   if (surface === "program") {
     return (
       <ProgramView
         date={date}
         conversation={conversation}
-        onClose={() => setSurface("today")}
+        onClose={() => {
+          setSurface(programReturnSurface);
+          setProgramReturnSurface("today");
+        }}
         onOpenThread={() => setSurface("thread")}
       />
     );
@@ -421,6 +454,7 @@ export function TodayView({ onSignOut, user, preview }: {
         name={shownDay?.user.first_name}
         runActive={!!activeRun && !isFinished(activeRun)}
         atFuture={atFuture}
+        openPlan={() => setSurface("plan")}
       />
 
       {error && (

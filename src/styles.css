@@ -1233,3 +1233,136 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 @media (max-width: 380px) {
   .arc { gap: 2px; height: 80px; }
 }
+
+/* Planen.
+   Bågen färgas av veckans *läge*, inte av dess tyngd — formen på programmet
+   ritas på programsidan, och de två frågorna förtjänar varsin bild. */
+.plan-arc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-arc-week {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.plan-arc-week.state-completed { background: var(--ok-canvas); border-color: var(--ok-line); color: var(--ok-ink); }
+.plan-arc-week.state-missed { background: var(--error-canvas); border-color: var(--error-line); color: var(--error-ink); }
+.plan-arc-week.state-current { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
+/* Kommande veckor är streckade: de har inte hänt, och en fylld ruta hade sett
+   ut som ett påstående om något som ännu inte är sant. */
+.plan-arc-week.state-upcoming { background: none; border-style: dashed; }
+
+/* Avlastning märks i bågen också. En lätt vecka är lätt med flit, och den som
+   inte vet det tror att den är fel. */
+.plan-arc-week.deload::after {
+  content: "";
+  display: block;
+  width: 10px;
+  height: 2px;
+  margin: -6px auto 0;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.plan-arc-week.open { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+.plan-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.plan-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  vertical-align: baseline;
+}
+
+.plan-legend .state-completed::before { background: var(--ok-canvas); border-color: var(--ok-line); }
+.plan-legend .state-missed::before { background: var(--error-canvas); border-color: var(--error-line); }
+.plan-legend .state-current::before { background: var(--blue); border-color: var(--blue); }
+.plan-legend .state-upcoming::before { background: none; border-style: dashed; }
+
+.plan-week + .plan-week { border-top: 1px solid var(--line); }
+
+.plan-week-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.plan-week-title { flex: 1 1 auto; min-width: 0; }
+.plan-week-state { font-size: 13px; color: var(--muted); }
+
+.plan-week-body { padding: 0 0 14px; display: grid; gap: 10px; }
+.plan-week-note { margin: 0; font-size: 14px; }
+
+.plan-week-facts { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Volymstapeln. Ritas bara när både lyft och mål finns — en stapel utan skala
+   hade sett ut som ett svar. */
+.plan-load {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--blue-faint);
+  overflow: hidden;
+}
+
+.plan-load-fill { display: block; height: 100%; background: var(--blue); }
+
+.plan-days { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+
+.plan-day {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  /* Indraget bärs av alla rader, inte bara den markerade. Att lägga det på
+     markören hade skjutit just den raden ur linje med de sex andra. */
+  padding: 5px 0 5px 8px;
+  font-size: 14px;
+}
+
+.plan-day-name { text-transform: none; }
+.plan-day-body { display: grid; gap: 2px; min-width: 0; }
+.plan-day-state { font-size: 12px; }
+
+/* Dagen man tittar från får en markör, inte en färgplatta: raden ska gå att
+   hitta utan att se ut som ett annat läge. */
+.plan-day.today { box-shadow: inset 2px 0 0 var(--blue); }
+
+.plan-day.state-skipped .plan-session { text-decoration: line-through; opacity: 0.7; }
+
+@media (max-width: 380px) {
+  .plan-arc-week { width: 30px; height: 30px; font-size: 12px; }
+  .plan-day { grid-template-columns: 38px minmax(0, 1fr); }
+  .plan-day-state { grid-column: 2; }
+}
