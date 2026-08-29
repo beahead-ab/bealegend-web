@@ -428,7 +428,9 @@ export function TodayView({ onSignOut, user, preview }: {
         onOpenThread={() => setSurface("thread")}
         onOpenProgram={() => {
           setProgramReturnSurface("session");
-          setSurface("program");
+          // Utan program-id: passet öppnar det man följer, inte det man
+          // senast tittade på.
+          go({ ...route, surface: "program", program: null });
         }}
       />
     );
@@ -450,12 +452,15 @@ export function TodayView({ onSignOut, user, preview }: {
     return (
       <ProgramView
         date={date}
+        programId={route.program}
         conversation={conversation}
         onClose={() => {
           setSurface(programReturnSurface);
           setProgramReturnSurface("today");
         }}
         onOpenThread={() => setSurface("thread")}
+        // Programmet bärs i adressen, så en sida man tittar på går att skicka.
+        onOpenProgram={(id) => go({ ...route, surface: "program", program: id })}
       />
     );
   }

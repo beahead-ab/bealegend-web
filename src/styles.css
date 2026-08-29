@@ -1438,3 +1438,25 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   gap: 8px;
   margin-top: 10px;
 }
+
+/* Startdatumet. Ett fält och inte en kalendervy: webbläsarens egen väljare är
+   den användaren redan kan, och en egen hade varit en till att lära sig. */
+.start-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 12px;
+  font-size: 14px;
+}
+
+.start-date input {
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+.start-day { margin: -6px 0 12px; font-size: 13px; text-align: right; }
