@@ -563,7 +563,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
  */
 @media (pointer: coarse) {
   .icon-button, .account-mark { width: 44px; height: 44px; }
-  .floor-send, .floor-mic, .floor-stop { width: 44px; height: 44px; }
+  .floor-camera, .floor-send, .floor-mic, .floor-stop { width: 44px; height: 44px; }
   .pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; }
   .primary-button { min-height: 44px; }
   .quiet-button { padding: 12px 8px; }
@@ -652,6 +652,20 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   padding: 7px 0;
   max-height: 148px;
 }
+
+.floor-file { display: none; }
+.floor-camera {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.floor-camera:hover { color: var(--ink); }
+.floor-camera:disabled { opacity: 0.35; cursor: default; }
 
 .floor-send {
   display: inline-flex;
@@ -746,6 +760,24 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .bubble-row { display: flex; margin-bottom: 12px; gap: 10px; }
 .bubble-row.user { justify-content: flex-end; }
 
+.user-turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  max-width: 78%;
+}
+
+.thread-photo {
+  display: block;
+  width: min(240px, 64vw);
+  max-height: 240px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
 /* Quiet, not iMessage blue: what a person said is not data. */
 .bubble {
   margin: 0;
@@ -756,6 +788,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   background: var(--surface);
   font-size: 14px;
 }
+.user-turn .bubble { max-width: 100%; }
 
 .coach-avatar-picture { width: 22px; height: 30px; margin-top: 3px; flex: 0 0 auto; }
 .coach-avatar { width: 22px; height: 30px; object-fit: contain; display: block; }

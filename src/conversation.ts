@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chat } from "./chat";
+import { attachmentUrl, chat } from "./chat";
 import { splitProse, type ThreadAction, type ThreadMessage } from "./thread";
 
 /**
@@ -8,6 +8,21 @@ import { splitProse, type ThreadAction, type ThreadMessage } from "./thread";
  * memory disagreed about when a conversation ended.
  */
 export const INACTIVITY_MS = 30 * 60 * 1000;
+
+/** Kameran är en loggväg, inte en separat bildanalysyta. */
+export const PHOTO_PROMPT = "Analysera och logga den här måltiden.";
+
+export function imageDataUrl(file: File): Promise<string> {
+  if (!file.type.startsWith("image/")) return Promise.reject(new Error("Filen är inte en bild."));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string"
+      ? resolve(reader.result)
+      : reject(new Error("Bilden kunde inte läsas."));
+    reader.onerror = () => reject(new Error("Bilden kunde inte läsas."));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function isConversationActive(lastActivity: Date | null, finished: boolean, now = new Date()): boolean {
   if (finished || !lastActivity) return false;
@@ -48,6 +63,7 @@ export function useConversation() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [lastActivity, setLastActivity] = useState<Date | null>(null);
   const [finished, setFinished] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -79,13 +95,20 @@ export function useConversation() {
     }
   }, [cursor, loadingOlder]);
 
-  const send = useCallback(async () => {
-    const text = draft.trim();
+  const sendTurn = useCallback(async (text: string, image?: string) => {
     if (!text || answering) return;
 
     const now = new Date();
     const outgoing: ThreadMessage = {
-      id: nextLocalId(), role: "user", text, actions: [], streaming: false, failed: false, createdAt: now,
+      id: nextLocalId(),
+      role: "user",
+      text,
+      attachmentUrl: image ?? null,
+      attachmentMealId: null,
+      actions: [],
+      streaming: false,
+      failed: false,
+      createdAt: now,
     };
     const placeholderId = nextLocalId();
     const placeholder: ThreadMessage = {
@@ -99,23 +122,32 @@ export function useConversation() {
     setMessages((current) => [...current, outgoing, placeholder]);
     setDraft("");
     setAnswering(true);
+    setPhotoError(null);
     setFinished(false);
     setLastActivity(now);
 
     const update = (change: (message: ThreadMessage) => ThreadMessage) =>
       setMessages((current) => current.map((message) => (message.id === placeholderId ? change(message) : message)));
+    const updateOutgoing = (change: (message: ThreadMessage) => ThreadMessage) =>
+      setMessages((current) => current.map((message) => (message.id === outgoing.id ? change(message) : message)));
 
     const controller = new AbortController();
     abort.current = controller;
 
     try {
+      const attachment = image ? await chat.uploadAttachment(image) : null;
+      if (attachment) {
+        // Byt till serveradressen så samma privata bild används resten av
+        // sessionen. Om svaret därefter faller står bilden ändå kvar.
+        updateOutgoing((message) => ({ ...message, attachmentUrl: attachmentUrl(attachment.url) }));
+      }
       await chat.stream(prompt, (event) => {
         if (event.kind === "text") {
           update((message) => ({ ...message, text: message.text + event.delta }));
         } else {
           update((message) => ({ ...message, actions: [...message.actions, ...(event.actions as ThreadAction[])] }));
         }
-      }, controller.signal);
+      }, controller.signal, attachment?.id);
       // A turn that ended without a word is not a blank bubble — it is a
       // failure that happened to return 200, and the thread should say so.
       update((message) => ({
@@ -138,7 +170,23 @@ export function useConversation() {
       setLastActivity(new Date());
       abort.current = null;
     }
-  }, [answering, draft, messages]);
+  }, [answering, messages]);
+
+  const send = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || answering) return;
+    await sendTurn(text);
+  }, [answering, draft, sendTurn]);
+
+  const sendImage = useCallback(async (file: File) => {
+    if (answering) return;
+    try {
+      const image = await imageDataUrl(file);
+      await sendTurn(PHOTO_PROMPT, image);
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "Bilden kunde inte läsas.");
+    }
+  }, [answering, sendTurn]);
 
   const finish = useCallback(() => {
     abort.current?.abort();
@@ -154,7 +202,9 @@ export function useConversation() {
     loadingOlder,
     loadOlder,
     send,
+    sendImage,
     finish,
+    photoError,
     canSend: draft.trim().length > 0 && !answering,
     isActive: isConversationActive(lastActivity, finished),
     lastLine: lastAssistantLine(messages),

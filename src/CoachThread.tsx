@@ -100,7 +100,15 @@ export function CoachThread({
                   <Fragment key={message.id}>
                     {stamp}
                     <div className="bubble-row user">
-                      <p className="bubble">{message.text}</p>
+                      <div className="user-turn">
+                        {message.attachmentUrl && (
+                          <img className="thread-photo" src={message.attachmentUrl} alt="Bild skickad i chatten" />
+                        )}
+                        {message.text && <p className="bubble">{message.text}</p>}
+                        {message.attachmentMealId && (
+                          <span className="chip done"><MealIcon /> Måltid sparad</span>
+                        )}
+                      </div>
                     </div>
                   </Fragment>
                 );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { MicIcon, SendIcon, StopIcon } from "./icons";
+import { CameraIcon, MicIcon, SendIcon, StopIcon } from "./icons";
 import { appendTranscript, useDictation } from "./useDictation";
 import type { useConversation } from "./conversation";
 
@@ -19,6 +19,7 @@ export function CoachFloor({
   inThread: boolean;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const dictation = useDictation(
     useCallback(
       (spoken: string) => conversation.setDraft(appendTranscript(conversation.draft, spoken)),
@@ -57,6 +58,30 @@ export function CoachFloor({
   return (
     <div className="floor">
       <div className="floor-composer">
+        <input
+          ref={camera}
+          className="floor-file"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (!file) return;
+            onOpenThread();
+            void conversation.sendImage(file);
+          }}
+        />
+        <button
+          className="floor-camera"
+          onClick={() => camera.current?.click()}
+          aria-label="Fotografera eller välj bild"
+          disabled={conversation.answering}
+        >
+          <CameraIcon />
+        </button>
         <textarea
           ref={field}
           rows={1}
@@ -91,9 +116,9 @@ export function CoachFloor({
 
       {/* A microphone that is listening and one that was refused look
           identical — both produce no words. So the floor says which. */}
-      {(dictation.listening || dictation.error) && (
+      {(dictation.listening || dictation.error || conversation.photoError) && (
         <p className="floor-note">
-          {dictation.error || (dictation.interim ? dictation.interim : "Lyssnar … tryck på stopp när du är klar.")}
+          {conversation.photoError || dictation.error || (dictation.interim ? dictation.interim : "Lyssnar … tryck på stopp när du är klar.")}
         </p>
       )}
     </div>

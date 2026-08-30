@@ -46,11 +46,30 @@ export function sseEvents(buffer: { rest: string }, chunk: string): ChatStreamEv
 }
 
 type HistoryPayload = {
-  messages: { id: string; role: string; content: string; created_at: string }[];
+  messages: {
+    id: string;
+    role: string;
+    content: string;
+    created_at: string;
+    attachment_url?: string | null;
+    attachment_meal_id?: string | null;
+  }[];
   next_cursor: string | null;
 };
 
 export type HistoryPage = { messages: ThreadMessage[]; nextCursor: string | null };
+
+export type ChatAttachment = { id: string; url: string };
+
+/**
+ * Bilageadressen från backend är avsiktligt relativ. Den innehåller sin egen
+ * privata läsnyckel, men ska fortfarande hämtas från API-värden när webb och
+ * backend ligger på olika domäner.
+ */
+export function attachmentUrl(path: string): string {
+  if (/^(?:data:|blob:|https?:\/\/)/i.test(path)) return path;
+  return `${API_URL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
 
 export const chat = {
   /** Newest first from the server; reversed here so the thread reads downwards. */
@@ -64,6 +83,8 @@ export const chat = {
           id: message.id,
           role: (message.role as ThreadRole) ?? "assistant",
           text: message.content,
+          attachmentUrl: message.attachment_url ? attachmentUrl(message.attachment_url) : null,
+          attachmentMealId: message.attachment_meal_id ?? null,
           actions: [],
           streaming: false,
           failed: false,
@@ -76,6 +97,13 @@ export const chat = {
 
   deleteHistory: () => request<void>("/api/v1/chat/messages", { method: "DELETE" }),
 
+  /** Bilden finns före turen, så ett avbrutet AI-svar aldrig tappar fotot. */
+  uploadAttachment: (imageDataUrl: string) =>
+    request<ChatAttachment>("/api/v1/chat/attachments", {
+      method: "POST",
+      body: JSON.stringify({ image_data_url: imageDataUrl }),
+    }),
+
   /**
    * Streams one turn, calling back per event. Prose arrives as deltas; whatever
    * the turn *did* arrives once at the end as an actions envelope.
@@ -84,12 +112,17 @@ export const chat = {
     messages: { role: string; content: string }[],
     onEvent: (event: ChatStreamEvent) => void,
     signal?: AbortSignal,
+    attachmentId?: string,
   ): Promise<void> {
     const response = await fetch(`${API_URL}/api/v1/chat/stream`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify({ messages: messages.slice(-40), mode: "standard" }),
+      body: JSON.stringify({
+        messages: messages.slice(-40),
+        mode: "standard",
+        ...(attachmentId ? { attachment_id: attachmentId } : {}),
+      }),
       signal,
     });
 
