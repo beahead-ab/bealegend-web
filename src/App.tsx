@@ -1,6 +1,7 @@
 import { SignInView } from "./SignInView";
 import { TodayView } from "./TodayView";
 import { isoDate, type DailyOverview } from "./daily";
+import { useForegroundPresence } from "./foregroundPresence";
 import { useSession } from "./session";
 
 function previewDay(): DailyOverview {
@@ -50,6 +51,7 @@ export function App() {
   // one holding signIn would not be the one being rendered — signing in would
   // succeed against a state nobody is looking at.
   const { session, signIn, signOut } = useSession();
+  useForegroundPresence(session.status === "signedIn");
 
   // A deterministic product surface for visual regression work. Vite removes
   // this branch from production builds; no preview data can reach a user.
