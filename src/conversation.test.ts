@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { INACTIVITY_MS, isConversationActive, lastAssistantLine, promptFrom } from "./conversation";
+import { INACTIVITY_MS, PHOTO_PROMPT, imageDataUrl, isConversationActive, lastAssistantLine, promptFrom } from "./conversation";
 import type { ThreadMessage } from "./thread";
 
 const message = (role: ThreadMessage["role"], text: string): ThreadMessage => ({
@@ -88,5 +88,23 @@ describe("promptFrom", () => {
       { role: "user", content: "A" },
       { role: "assistant", content: "B" },
     ]);
+  });
+});
+
+describe("kameraturen", () => {
+  it("har en tydlig loggintention i samma chatt", () => {
+    expect(PHOTO_PROMPT).toBe("Analysera och logga den här måltiden.");
+  });
+
+  it("läser en vald bild som den data-url backend tar emot", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "frukost.png", { type: "image/png" });
+
+    await expect(imageDataUrl(file)).resolves.toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("avvisar något som inte är en bild före nätverksanropet", async () => {
+    const file = new File(["hej"], "anteckning.txt", { type: "text/plain" });
+
+    await expect(imageDataUrl(file)).rejects.toThrow("inte en bild");
   });
 });

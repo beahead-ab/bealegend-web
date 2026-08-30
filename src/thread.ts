@@ -6,6 +6,10 @@ export type ThreadMessage = {
   id: string;
   role: ThreadRole;
   text: string;
+  /** Bilden som hör till just den här turen, lokal eller återläst från servern. */
+  attachmentUrl?: string | null;
+  /** Måltiden bilden blev, när den har sparats. */
+  attachmentMealId?: string | null;
   actions: ThreadAction[];
   streaming: boolean;
   failed: boolean;
