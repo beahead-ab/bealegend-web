@@ -49,6 +49,18 @@ export function undoable(changes: DashboardChange[]): DashboardChange | null {
   return newest;
 }
 
+/**
+ * Vem som ändrade, som en läsbar ändelse — eller tom sträng för användaren själv.
+ *
+ * Att skriva ut »du« vore att berätta för någon vad hon nyss gjorde. Legend
+ * däremot måste stå med namn: en startsida som rört sig utan att någon bett om
+ * det är obegriplig tills man vet vem som flyttade något, och hela principen om
+ * vad Legend får göra vilar på att den skillnaden syns.
+ */
+export function authorLabel(change: DashboardChange): string {
+  return change.origin === "legend" ? "Legend" : "";
+}
+
 /** Ett inaktuellt Ångra — någon annan flik, eller Legend, hann före. */
 export function isStaleUndo(error: unknown): boolean {
   return error instanceof ApiError && error.status === 409;
