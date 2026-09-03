@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  authorLabel,
   fetchChanges,
   isStaleUndo,
   undoChange,
@@ -68,7 +69,14 @@ export function ChangeReceipt({ onUndone }: { onUndone: (config: DashboardConfig
             skärm ska knappen inte hamna ensam på en egen rad, långt från det
             den gäller. */}
         <span className="receipt-meta">
-          <span className="receipt-when muted">{whenLabel(newest.changed_at)}</span>
+          {/* Vem som ändrade hör hemma på den nyaste raden framför alla andra:
+              det är den en Legend-ändring producerar, och den en användare
+              läser när sidan ser annorlunda ut än i går. Märket fanns bara i
+              den utfällda listan, alltså överallt utom där det behövdes. */}
+          <span className="receipt-when muted">
+            {whenLabel(newest.changed_at)}
+            {authorLabel(newest) && ` · ${authorLabel(newest)}`}
+          </span>
           {canUndo && (
             <button className="quiet-button" onClick={undo} disabled={busy}>Ångra</button>
           )}
@@ -94,9 +102,7 @@ export function ChangeReceipt({ onUndone }: { onUndone: (config: DashboardConfig
               <span>{change.summary}</span>
               <span className="receipt-when muted">
                 {whenLabel(change.changed_at)}
-                {/* Vem som ändrade är inte en detalj: hela principen om vad
-                    Legend får göra vilar på att skillnaden syns. */}
-                {change.origin === "legend" ? " · Legend" : ""}
+                {authorLabel(change) && ` · ${authorLabel(change)}`}
               </span>
             </li>
           ))}

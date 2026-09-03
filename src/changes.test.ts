@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "./api";
-import { isStaleUndo, undoable, whenLabel, type DashboardChange } from "./changes";
+import { authorLabel, isStaleUndo, undoable, whenLabel, type DashboardChange } from "./changes";
 
 function change(over: Partial<DashboardChange> = {}): DashboardChange {
   return {
@@ -38,6 +38,21 @@ describe("undoable", () => {
 
   it("en startsida ingen rört har ingenting att ångra", () => {
     expect(undoable([])).toBeNull();
+  });
+});
+
+describe("authorLabel", () => {
+  it("namnger Legend", () => {
+    expect(authorLabel(change({ origin: "legend" }))).toBe("Legend");
+  });
+
+  it("namnger inte användaren sig själv", () => {
+    expect(authorLabel(change({ origin: "user" }))).toBe("");
+  });
+
+  it("ett okänt ursprung namnges inte", () => {
+    // Hellre tyst än att påstå något om vem som ändrade.
+    expect(authorLabel(change({ origin: "coach" }))).toBe("");
   });
 });
 
