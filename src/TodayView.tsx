@@ -231,8 +231,15 @@ export function TodayView({ onSignOut, user, preview }: {
    * Nollställs när programsidan stängs. Ett returmål som låg kvar efteråt hade
    * följt med till nästa gång man öppnade ett pass — och då hade passets egen
    * tillbakaknapp pekat på passet självt, alltså inte gjort någonting.
-   */
+  */
   const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session">("today");
+  // Chatten är en tillfällig helskärmsyta. Stängning ska därför gå tillbaka
+  // dit användaren kom ifrån, precis som när iOS-bladet fälls undan.
+  const [threadReturnSurface, setThreadReturnSurface] = useState<Exclude<Surface, "thread">>("today");
+  const openThreadFrom = (source: Exclude<Surface, "thread">) => {
+    setThreadReturnSurface(source);
+    setSurface("thread");
+  };
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation(refreshDayAfterMeal);
@@ -246,7 +253,7 @@ export function TodayView({ onSignOut, user, preview }: {
    */
   const askInThread = (sentence: string) => {
     conversation.setDraft(sentence);
-    setSurface("thread");
+    openThreadFrom("today");
   };
   const [overview, setOverview] = useState<DailyOverview | null>(preview ?? null);
   const [config, setConfig] = useState<DashboardConfig | null>(null);
@@ -385,6 +392,8 @@ export function TodayView({ onSignOut, user, preview }: {
         if (surface === "program") {
           setSurface(programReturnSurface);
           setProgramReturnSurface("today");
+        } else if (surface === "thread") {
+          setSurface(threadReturnSurface);
         } else {
           setSurface("today");
         }
@@ -420,7 +429,7 @@ export function TodayView({ onSignOut, user, preview }: {
   const atFuture = date.toDateString() === addDays(new Date(), 1).toDateString();
 
   if (surface === "thread") {
-    return <CoachThread conversation={conversation} onClose={() => setSurface("today")} />;
+    return <CoachThread conversation={conversation} onClose={() => setSurface(threadReturnSurface)} />;
   }
 
   if (surface === "session") {
@@ -429,7 +438,7 @@ export function TodayView({ onSignOut, user, preview }: {
         date={date}
         conversation={conversation}
         onClose={() => setSurface("today")}
-        onOpenThread={() => setSurface("thread")}
+        onOpenThread={() => openThreadFrom("session")}
         onOpenProgram={() => {
           setProgramReturnSurface("session");
           // Utan program-id: passet öppnar det man följer, inte det man
@@ -445,7 +454,7 @@ export function TodayView({ onSignOut, user, preview }: {
       <PlanView
         conversation={conversation}
         onClose={() => setSurface("today")}
-        onOpenThread={() => setSurface("thread")}
+        onOpenThread={() => openThreadFrom("plan")}
         onOpenProgram={() => setSurface("program")}
         onOpenSession={(day) => go({ date: day, surface: "session" })}
       />
@@ -462,7 +471,7 @@ export function TodayView({ onSignOut, user, preview }: {
           setSurface(programReturnSurface);
           setProgramReturnSurface("today");
         }}
-        onOpenThread={() => setSurface("thread")}
+        onOpenThread={() => openThreadFrom("program")}
         // Programmet bärs i adressen, så en sida man tittar på går att skicka.
         onOpenProgram={(id) => go({ ...route, surface: "program", program: id })}
       />
@@ -522,7 +531,7 @@ export function TodayView({ onSignOut, user, preview }: {
                     <NutritionModule
                       key={`${section.group}-${section.widgets[0].binding}`}
                       overview={shownDay}
-                      onAddMeal={() => setSurface("thread")}
+                      onAddMeal={() => openThreadFrom("today")}
                       bindings={section.widgets.map((widget) => widget.binding)}
                     />
                   ) : (
@@ -553,7 +562,7 @@ export function TodayView({ onSignOut, user, preview }: {
             : (
               <BuiltInSurface
                 overview={shownDay}
-                openThread={() => setSurface("thread")}
+                openThread={() => openThreadFrom("today")}
                 openTraining={() => setSurface("session")}
                 runningLabel={runningLabel}
               />
@@ -562,14 +571,14 @@ export function TodayView({ onSignOut, user, preview }: {
           {!atFuture && nothingMeasured(shownDay) && (
             <WaysIn
               hasSession={hasSession}
-              openThread={() => setSurface("thread")}
+              openThread={() => openThreadFrom("today")}
               openTraining={() => setSurface("session")}
             />
           )}
         </>
       )}
 
-      <CoachFloor conversation={conversation} onOpenThread={() => setSurface("thread")} inThread={false} />
+      <CoachFloor conversation={conversation} onOpenThread={() => openThreadFrom("today")} inThread={false} />
     </div>
   );
 }
