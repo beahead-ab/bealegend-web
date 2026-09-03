@@ -12,6 +12,12 @@ export const INACTIVITY_MS = 30 * 60 * 1000;
 /** Kameran är en loggväg, inte en separat bildanalysyta. */
 export const PHOTO_PROMPT = "Analysera och logga den här måltiden.";
 
+/** Actions whose successful completion changes the numbers and meal list on
+ * the day surface. Read-only actions must not cause a second overview request. */
+export function changesDailyOverview(actions: ThreadAction[]): boolean {
+  return actions.some(({ action_type }) => action_type === "log_meal" || action_type === "copy_meal");
+}
+
 export function imageDataUrl(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) return Promise.reject(new Error("Filen är inte en bild."));
   return new Promise((resolve, reject) => {
@@ -55,7 +61,7 @@ export function promptFrom(messages: ThreadMessage[]): { role: string; content: 
 let localId = 0;
 const nextLocalId = () => `local-${(localId += 1)}`;
 
-export function useConversation() {
+export function useConversation(onDailyOverviewChanged?: () => void) {
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [answering, setAnswering] = useState(false);
@@ -146,6 +152,7 @@ export function useConversation() {
           update((message) => ({ ...message, text: message.text + event.delta }));
         } else {
           update((message) => ({ ...message, actions: [...message.actions, ...(event.actions as ThreadAction[])] }));
+          if (changesDailyOverview(event.actions)) onDailyOverviewChanged?.();
         }
       }, controller.signal, attachment?.id);
       // A turn that ended without a word is not a blank bubble — it is a
@@ -170,7 +177,7 @@ export function useConversation() {
       setLastActivity(new Date());
       abort.current = null;
     }
-  }, [answering, messages]);
+  }, [answering, messages, onDailyOverviewChanged]);
 
   const send = useCallback(async () => {
     const text = draft.trim();

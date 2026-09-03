@@ -69,7 +69,6 @@ export function CoachThread({
             conversation.finish();
             onClose();
           }}
-          disabled={!conversation.isActive}
         >
           Klar
         </button>

@@ -41,4 +41,11 @@ describe("chattbildens yta", () => {
     expect(html).toContain('aria-label="Fotografera eller välj bild"');
     expect(html).not.toContain("data:image");
   });
+
+  it("går alltid att lämna chatten med Klar", () => {
+    const inactive = { ...conversation(), isActive: false };
+    const html = renderToStaticMarkup(<CoachThread conversation={inactive} onClose={() => undefined} />);
+
+    expect(html).toContain('<button class="thread-done">Klar</button>');
+  });
 });
