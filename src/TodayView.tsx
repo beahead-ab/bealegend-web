@@ -218,6 +218,11 @@ export function TodayView({ onSignOut, user, preview }: {
   const { date, surface } = route;
   const setSurface = (next: Surface) => go({ ...route, surface: next });
   const setDate = (next: Date) => go({ ...route, date: next });
+  // A meal written through the conversation changes the day immediately. The
+  // thread stays open while the fresh overview is fetched, so leaving it never
+  // reveals the numbers from before the action.
+  const [attempt, setAttempt] = useState(0);
+  const refreshDayAfterMeal = useCallback(() => setAttempt((current) => current + 1), []);
   /**
    * Var programsidan stängs till. En direktöppnad eller omladdad programsida
    * har ingen förälder och stänger till Idag; öppnad ur ett pass stänger den
@@ -230,7 +235,7 @@ export function TodayView({ onSignOut, user, preview }: {
   const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session">("today");
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
-  const conversation = useConversation();
+  const conversation = useConversation(refreshDayAfterMeal);
 
   /**
    * En yta som vill be om något lägger meningen i samtalet och öppnar tråden.
@@ -278,7 +283,6 @@ export function TodayView({ onSignOut, user, preview }: {
 
   // Bumped to retry: the same fetch, run again, without a reload. Mid-pass,
   // "load the page again" is the most expensive instruction the surface can give.
-  const [attempt, setAttempt] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {

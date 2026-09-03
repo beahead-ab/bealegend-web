@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { INACTIVITY_MS, PHOTO_PROMPT, imageDataUrl, isConversationActive, lastAssistantLine, promptFrom } from "./conversation";
+import {
+  INACTIVITY_MS,
+  PHOTO_PROMPT,
+  changesDailyOverview,
+  imageDataUrl,
+  isConversationActive,
+  lastAssistantLine,
+  promptFrom,
+} from "./conversation";
 import type { ThreadMessage } from "./thread";
 
 const message = (role: ThreadMessage["role"], text: string): ThreadMessage => ({
@@ -106,5 +114,17 @@ describe("kameraturen", () => {
     const file = new File(["hej"], "anteckning.txt", { type: "text/plain" });
 
     await expect(imageDataUrl(file)).rejects.toThrow("inte en bild");
+  });
+});
+
+describe("uppdatering av dagen efter chattåtgärder", () => {
+  it("uppdaterar efter en ny eller kopierad måltid", () => {
+    expect(changesDailyOverview([{ action_type: "log_meal", summary: "Måltid sparad" }])).toBe(true);
+    expect(changesDailyOverview([{ action_type: "copy_meal", summary: "Måltid kopierad" }])).toBe(true);
+  });
+
+  it("hämtar inte om dagen efter en läsning eller dashboardändring", () => {
+    expect(changesDailyOverview([{ action_type: "read_meals", summary: "Måltider lästa" }])).toBe(false);
+    expect(changesDailyOverview([{ action_type: "dashboard", summary: "Dashboard ändrad" }])).toBe(false);
   });
 });
