@@ -18,6 +18,21 @@ describe("readRoute", () => {
 
     expect(isoDate(route.date)).toBe("2026-08-21");
     expect(route.surface).toBe("today");
+    expect(route.chatOpen).toBe(false);
+  });
+
+  it("opens chat over today for an old or shared chat link", () => {
+    const route = readRoute("?v=chatt", TODAY);
+
+    expect(route.surface).toBe("today");
+    expect(route.chatOpen).toBe(true);
+  });
+
+  it("remembers the surface behind an open chat", () => {
+    const route = readRoute("?v=chatt&bak=pass", TODAY);
+
+    expect(route.surface).toBe("session");
+    expect(route.chatOpen).toBe(true);
   });
 
   /**
@@ -62,7 +77,21 @@ describe("routeSearch", () => {
   });
 
   it("writes both when both differ", () => {
-    expect(routeSearch({ date: WEDNESDAY, surface: "thread" }, TODAY)).toBe("?d=2026-08-19&v=chatt");
+    expect(routeSearch({ date: WEDNESDAY, surface: "today", chatOpen: true }, TODAY))
+      .toBe("?d=2026-08-19&v=chatt");
+  });
+
+  it("writes the page that stays beside the open desktop chat", () => {
+    expect(routeSearch({ date: TODAY, surface: "session", chatOpen: true }, TODAY))
+      .toBe("?v=chatt&bak=pass");
+    expect(routeSearch({ date: TODAY, surface: "program", program: "abc", chatOpen: true }, TODAY))
+      .toBe("?v=chatt&bak=program&p=abc");
+  });
+
+  it("closes back to the exact surface that was beside the chat", () => {
+    const open = readRoute("?v=chatt&bak=pass", TODAY);
+
+    expect(routeSearch({ ...open, chatOpen: false }, TODAY)).toBe("?v=pass");
   });
 
   /** The bug this replaces: a reload kept the surface and lost the day. */
@@ -81,7 +110,10 @@ describe("sameRoute", () => {
   it("compares the day rather than the object", () => {
     expect(sameRoute({ date: new Date(2026, 7, 19), surface: "today" }, { date: WEDNESDAY, surface: "today" }))
       .toBe(true);
-    expect(sameRoute({ date: WEDNESDAY, surface: "today" }, { date: WEDNESDAY, surface: "thread" }))
+    expect(sameRoute(
+      { date: WEDNESDAY, surface: "today" },
+      { date: WEDNESDAY, surface: "today", chatOpen: true },
+    ))
       .toBe(false);
   });
 });

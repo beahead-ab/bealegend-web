@@ -22,9 +22,11 @@ function isNearBottom(element: HTMLElement): boolean {
 export function CoachThread({
   conversation,
   onClose,
+  open = true,
 }: {
   conversation: Conversation;
   onClose: () => void;
+  open?: boolean;
 }) {
   const scroll = useRef<HTMLDivElement>(null);
   const [behind, setBehind] = useState(false);
@@ -41,14 +43,16 @@ export function CoachThread({
    */
   useEffect(() => {
     const element = scroll.current;
-    if (!element) return;
+    // Hidden means folded, not abandoned. Reading position must stay exactly
+    // where it was while an answer continues to arrive behind the panel.
+    if (!element || !open) return;
     if (isNearBottom(element)) {
       element.scrollTop = element.scrollHeight;
       setBehind(false);
     } else {
       setBehind(true);
     }
-  }, [conversation.messages]);
+  }, [conversation.messages, open]);
 
   const toBottom = () => {
     const element = scroll.current;
@@ -151,7 +155,7 @@ export function CoachThread({
         <button className="thread-catchup" onClick={toBottom}>Nytt svar ↓</button>
       )}
 
-      <CoachFloor conversation={conversation} onOpenThread={() => undefined} inThread />
+      <CoachFloor conversation={conversation} onOpenThread={() => undefined} inThread focused={open} />
     </div>
   );
 }

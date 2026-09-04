@@ -1,10 +1,18 @@
 import { isoDate } from "./daily";
 
-export type Surface = "today" | "session" | "thread" | "program" | "plan";
+export type Surface = "today" | "session" | "program" | "plan";
 
 export type Route = {
   date: Date;
   surface: Surface;
+  /**
+   * Samtalet ligger ovanpå den yta man arbetar i. På mobil ritar CSS bara
+   * samtalet; på bred webb ritas samma tråd som en panel bredvid ytan.
+   *
+   * Valet ligger i adressen. En omladdning tappar därför varken panelen eller
+   * det som stod bakom den, och en ren ny adress börjar alltid stängd.
+   */
+  chatOpen?: boolean;
   /**
    * Programmet man tittar på, när det inte är det man följer.
    *
@@ -22,14 +30,12 @@ export type Route = {
  */
 const SURFACE_PARAM: Record<Exclude<Surface, "today">, string> = {
   session: "pass",
-  thread: "chatt",
   program: "program",
   plan: "planen",
 };
 
 const PARAM_SURFACE: Record<string, Surface> = {
   pass: "session",
-  chatt: "thread",
   program: "program",
   planen: "plan",
 };
@@ -49,9 +55,12 @@ function dateFrom(text: string | null): Date | null {
 
 export function readRoute(search: string, today: Date = new Date()): Route {
   const params = new URLSearchParams(search);
+  const chatOpen = params.get("v") === "chatt";
+  const surfaceParam = chatOpen ? params.get("bak") : params.get("v");
   return {
     date: dateFrom(params.get("d")) ?? today,
-    surface: PARAM_SURFACE[params.get("v") ?? ""] ?? "today",
+    surface: PARAM_SURFACE[surfaceParam ?? ""] ?? "today",
+    chatOpen,
     program: params.get("p"),
   };
 }
@@ -64,7 +73,12 @@ export function readRoute(search: string, today: Date = new Date()): Route {
 export function routeSearch(route: Route, today: Date = new Date()): string {
   const params = new URLSearchParams();
   if (isoDate(route.date) !== isoDate(today)) params.set("d", isoDate(route.date));
-  if (route.surface !== "today") params.set("v", SURFACE_PARAM[route.surface]);
+  if (route.chatOpen) {
+    params.set("v", "chatt");
+    if (route.surface !== "today") params.set("bak", SURFACE_PARAM[route.surface]);
+  } else if (route.surface !== "today") {
+    params.set("v", SURFACE_PARAM[route.surface]);
+  }
   // Bara på programytan. Ett program-id i adressen till Idag hade sagt något
   // om en yta som inte visar något program.
   if (route.surface === "program" && route.program) params.set("p", route.program);
@@ -74,6 +88,7 @@ export function routeSearch(route: Route, today: Date = new Date()): string {
 
 export function sameRoute(a: Route, b: Route): boolean {
   return a.surface === b.surface
+    && !!a.chatOpen === !!b.chatOpen
     && isoDate(a.date) === isoDate(b.date)
     && (a.program ?? null) === (b.program ?? null);
 }

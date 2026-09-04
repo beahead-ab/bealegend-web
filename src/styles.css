@@ -97,6 +97,56 @@ body {
 
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
 
+/*
+ * Samma arbetsyta på alla skärmar. Under brytpunkten tar chatten över som den
+ * alltid gjort; över den får ytan vara kvar bredvid. Tråden tas aldrig ur DOM,
+ * vilket bevarar både scroll och ett svar som fortfarande strömmas in.
+ */
+.conversation-workspace,
+.workspace-content { min-height: 100%; }
+.conversation-workspace.chat-open .workspace-content { display: none; }
+.workspace-thread { min-height: 100%; }
+.conversation-workspace.chat-open .workspace-thread { display: block; }
+
+@media (min-width: 1280px) {
+  .conversation-workspace.chat-open {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    max-width: 1500px;
+    min-height: 100dvh;
+    margin: 0 auto;
+  }
+
+  .conversation-workspace.chat-open .workspace-content {
+    display: block;
+    min-width: 0;
+  }
+
+  .conversation-workspace.chat-open .workspace-content .floor { display: none; }
+
+  .conversation-workspace.chat-open .workspace-thread {
+    position: sticky;
+    top: 0;
+    min-height: 0;
+    height: 100dvh;
+    border-left: 1px solid var(--line);
+    background: var(--canvas);
+    box-shadow: -8px 0 24px var(--shadow-soft);
+  }
+
+  .workspace-thread .thread {
+    height: 100%;
+    max-width: none;
+    margin: 0;
+    padding-inline: 22px;
+  }
+
+  .workspace-thread .floor,
+  .workspace-thread .thread-catchup { position: absolute; }
+
+  .workspace-thread .floor { padding-inline: 16px; }
+}
+
 .app-shell {
   display: flex;
   flex-direction: column;

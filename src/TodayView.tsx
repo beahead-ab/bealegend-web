@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ChangeReceipt } from "./ChangeReceipt";
 import { CoachFloor } from "./CoachFloor";
 import { CoachThread } from "./CoachThread";
+import { ConversationWorkspace } from "./ConversationWorkspace";
 import { PlanView } from "./PlanView";
 import { ProgramView } from "./ProgramView";
 import { SessionView } from "./SessionView";
@@ -212,10 +213,10 @@ export function TodayView({ onSignOut, user, preview }: {
   // costs a refetch; the alternative is one person's day in a store the next
   // person could read.
   const userId = user?.id;
-  // Three surfaces, one at a time. The conversation lives above all of them,
-  // so moving between them never ends it.
+  // Four content surfaces. The conversation lives above all of them and can
+  // share the desktop with one, so moving between them never ends it.
   const [route, go] = useRoute();
-  const { date, surface } = route;
+  const { date, surface, chatOpen = false } = route;
   const setSurface = (next: Surface) => go({ ...route, surface: next });
   const setDate = (next: Date) => go({ ...route, date: next });
   // A meal written through the conversation changes the day immediately. The
@@ -233,16 +234,27 @@ export function TodayView({ onSignOut, user, preview }: {
    * tillbakaknapp pekat på passet självt, alltså inte gjort någonting.
   */
   const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session">("today");
-  // Chatten är en tillfällig helskärmsyta. Stängning ska därför gå tillbaka
-  // dit användaren kom ifrån, precis som när iOS-bladet fälls undan.
-  const [threadReturnSurface, setThreadReturnSurface] = useState<Exclude<Surface, "thread">>("today");
-  const openThreadFrom = (source: Exclude<Surface, "thread">) => {
-    setThreadReturnSurface(source);
-    setSurface("thread");
-  };
+  // Samtalet öppnas ovanpå den yta som bad om det. På mobil är det fortfarande
+  // helskärm; på desktop ligger samma tråd bredvid och ytan finns kvar.
+  const openThreadFrom = (source: Surface) => go({ ...route, surface: source, chatOpen: true });
+  const closeThread = () => go({ ...route, chatOpen: false });
   // Owned here, above both surfaces: leaving the thread must not end the
   // conversation, which is the whole point of §3.3's ongoing state.
   const conversation = useConversation(refreshDayAfterMeal);
+  const previousChatOpen = useRef(chatOpen);
+
+  // Returnera tangentbordsfokus dit samtalet öppnades. Själva ytan har legat
+  // kvar hela tiden, så detta återställer även rätt komponist på rätt sida.
+  useEffect(() => {
+    if (previousChatOpen.current && !chatOpen) {
+      const frame = window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(".workspace-content [data-chat-entry]")?.focus();
+      });
+      previousChatOpen.current = chatOpen;
+      return () => window.cancelAnimationFrame(frame);
+    }
+    previousChatOpen.current = chatOpen;
+  }, [chatOpen]);
 
   /**
    * En yta som vill be om något lägger meningen i samtalet och öppnar tråden.
@@ -383,6 +395,10 @@ export function TodayView({ onSignOut, user, preview }: {
   // whichever surface is open, which is what every other app on the machine does.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && chatOpen) {
+        closeThread();
+        return;
+      }
       const target = event.target as HTMLElement | null;
       // Never while typing: the arrows belong to the caret then.
       if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
@@ -392,8 +408,6 @@ export function TodayView({ onSignOut, user, preview }: {
         if (surface === "program") {
           setSurface(programReturnSurface);
           setProgramReturnSurface("today");
-        } else if (surface === "thread") {
-          setSurface(threadReturnSurface);
         } else {
           setSurface("today");
         }
@@ -428,12 +442,9 @@ export function TodayView({ onSignOut, user, preview }: {
   // requests to find that out.
   const atFuture = date.toDateString() === addDays(new Date(), 1).toDateString();
 
-  if (surface === "thread") {
-    return <CoachThread conversation={conversation} onClose={() => setSurface(threadReturnSurface)} />;
-  }
-
+  let content: ReactNode;
   if (surface === "session") {
-    return (
+    content = (
       <SessionView
         date={date}
         conversation={conversation}
@@ -448,21 +459,19 @@ export function TodayView({ onSignOut, user, preview }: {
       />
     );
   }
-
-  if (surface === "plan") {
-    return (
+  else if (surface === "plan") {
+    content = (
       <PlanView
         conversation={conversation}
         onClose={() => setSurface("today")}
         onOpenThread={() => openThreadFrom("plan")}
         onOpenProgram={() => setSurface("program")}
-        onOpenSession={(day) => go({ date: day, surface: "session" })}
+        onOpenSession={(day) => go({ ...route, date: day, surface: "session" })}
       />
     );
   }
-
-  if (surface === "program") {
-    return (
+  else if (surface === "program") {
+    content = (
       <ProgramView
         date={date}
         programId={route.program}
@@ -477,8 +486,7 @@ export function TodayView({ onSignOut, user, preview }: {
       />
     );
   }
-
-  return (
+  else content = (
     <div className="app-shell day-shell">
       <DayHeader
         date={date}
@@ -580,6 +588,14 @@ export function TodayView({ onSignOut, user, preview }: {
 
       <CoachFloor conversation={conversation} onOpenThread={() => openThreadFrom("today")} inThread={false} />
     </div>
+  );
+
+  return (
+    <ConversationWorkspace
+      open={chatOpen}
+      content={content}
+      thread={<CoachThread conversation={conversation} onClose={closeThread} open={chatOpen} />}
+    />
   );
 }
 

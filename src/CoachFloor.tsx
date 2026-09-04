@@ -13,10 +13,12 @@ export function CoachFloor({
   conversation,
   onOpenThread,
   inThread,
+  focused = false,
 }: {
   conversation: Conversation;
   onOpenThread: () => void;
   inThread: boolean;
+  focused?: boolean;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   const camera = useRef<HTMLInputElement>(null);
@@ -36,12 +38,21 @@ export function CoachFloor({
     element.style.height = `${Math.min(element.scrollHeight, 148)}px`;
   }, [conversation.draft]);
 
+  // A keyboard user who opens the panel has already chosen to speak. Move the
+  // caret into the same field once it is visible; closing returns focus to the
+  // entry point on the underlying surface in TodayView.
+  useEffect(() => {
+    if (!focused) return;
+    const frame = window.requestAnimationFrame(() => field.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [focused]);
+
   // §3.3: away from the thread, with a conversation still running, the floor
   // shows the coach's last line and a dot instead of an empty field.
   if (!inThread && conversation.isActive && conversation.lastLine) {
     return (
       <div className="floor">
-        <button className="floor-ongoing" onClick={onOpenThread}>
+        <button className="floor-ongoing" onClick={onOpenThread} data-chat-entry>
           <span className="floor-line">{conversation.lastLine}</span>
           <span className="floor-dot" aria-hidden="true" />
         </button>
@@ -84,6 +95,7 @@ export function CoachFloor({
         </button>
         <textarea
           ref={field}
+          data-chat-entry
           rows={1}
           value={conversation.draft}
           placeholder="Fråga, logga eller be om något …"
