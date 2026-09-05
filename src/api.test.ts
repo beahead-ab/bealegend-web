@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, request, staleRunFrom } from "./api";
+import { ApiError, auth, request, staleRunFrom } from "./api";
 
 function reply(status: number, body: unknown): Response {
   return new Response(status === 204 ? null : JSON.stringify(body), {
@@ -94,5 +94,40 @@ describe("staleRunFrom", () => {
   it("ignores ordinary errors", () => {
     expect(staleRunFrom(new ApiError(500, "Serverfel"))).toBeNull();
     expect(staleRunFrom(new Error("nätverket"))).toBeNull();
+  });
+});
+
+describe("account recovery", () => {
+  it("requests a reset without leaking whether the address exists", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(reply(200, { accepted: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(auth.forgotPassword("person@example.se")).resolves.toEqual({ accepted: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/auth/forgot-password"),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ email: "person@example.se" }) }),
+    );
+  });
+
+  it("encodes the personal token before validating the link", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(reply(200, { valid: true, purpose: "password_reset" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await auth.passwordToken("a+b/c=");
+    expect(fetchMock.mock.calls[0][0]).toContain("token=a%2Bb%2Fc%3D");
+  });
+
+  it("submits the new password with the token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(reply(200, { updated: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(auth.setPassword("token", "a-long-new-password")).resolves.toEqual({ updated: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/auth/set-password"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "token", password: "a-long-new-password" }),
+      }),
+    );
   });
 });

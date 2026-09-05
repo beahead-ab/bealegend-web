@@ -272,6 +272,17 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .primary-button:disabled { opacity: 0.45; cursor: not-allowed; }
 
+.text-button {
+  justify-self: center;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.text-button:hover { color: var(--ink); }
+.text-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .error-message {
   display: flex;
   align-items: center;
@@ -286,6 +297,16 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 /* The way out sits inside the message, so the fix is where the problem is. */
 .error-message .pill { margin-left: auto; flex: none; color: var(--ink); }
+
+.success-message {
+  margin: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--ok-line);
+  border-radius: 10px;
+  background: var(--ok-canvas);
+  color: var(--ok-ink);
+  font-size: 13px;
+}
 
 .centered {
   display: flex;
@@ -318,6 +339,8 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 .sign-in-form { display: grid; gap: 14px; width: 100%; max-width: 340px; }
+.account-title { margin: 0 0 5px; font-size: 20px; letter-spacing: -0.01em; }
+.account-copy { margin: 0; color: var(--muted); font-size: 13px; }
 .sign-in-form label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 
 .sign-in-form input {
