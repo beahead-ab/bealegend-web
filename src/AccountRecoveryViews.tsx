@@ -79,7 +79,15 @@ export function ForgotPasswordView({ onBack }: { onBack: () => void }) {
   );
 }
 
-export function SetPasswordView({ token, onDone }: { token: string; onDone: () => void }) {
+export function SetPasswordView({
+  token,
+  onDone,
+  onRequestNew,
+}: {
+  token: string;
+  onDone: () => void;
+  onRequestNew: () => void;
+}) {
   const [validating, setValidating] = useState(true);
   const [valid, setValid] = useState(false);
   const [password, setPassword] = useState("");
@@ -179,7 +187,7 @@ export function SetPasswordView({ token, onDone }: { token: string; onDone: () =
         ) : (
           <>
             <p className="error-message">Länken är ogiltig eller har gått ut.</p>
-            <button type="button" className="text-button" onClick={onDone}>
+            <button type="button" className="text-button" onClick={onRequestNew}>
               Begär en ny länk
             </button>
           </>

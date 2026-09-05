@@ -63,6 +63,11 @@ export function App() {
     setAccountView("sign-in");
   };
 
+  const showForgotPassword = () => {
+    window.history.replaceState({}, "", "/");
+    setAccountView("forgot");
+  };
+
   // A deterministic product surface for visual regression work. Vite removes
   // this branch from production builds; no preview data can reach a user.
   if (import.meta.env.DEV && window.location.pathname === "/__preview") {
@@ -75,6 +80,7 @@ export function App() {
         <SetPasswordView
           token={new URLSearchParams(window.location.search).get("token") ?? ""}
           onDone={showSignIn}
+          onRequestNew={showForgotPassword}
         />
       </div>
     );
@@ -103,7 +109,7 @@ export function App() {
       <div className="app-shell">
         <SignInView
           onSignIn={signIn}
-          onForgotPassword={() => setAccountView("forgot")}
+          onForgotPassword={showForgotPassword}
           busy={session.status === "signingIn"}
         />
       </div>
