@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { ForgotPasswordView, SetPasswordView } from "./AccountRecoveryViews";
 import { SignInView } from "./SignInView";
 import { TodayView } from "./TodayView";
 import { isoDate, type DailyOverview } from "./daily";
@@ -51,12 +53,39 @@ export function App() {
   // one holding signIn would not be the one being rendered — signing in would
   // succeed against a state nobody is looking at.
   const { session, signIn, signOut } = useSession();
+  const [accountView, setAccountView] = useState<"sign-in" | "forgot" | "set-password">(() =>
+    window.location.pathname === "/set-password" ? "set-password" : "sign-in",
+  );
   useForegroundPresence(session.status === "signedIn");
+
+  const showSignIn = () => {
+    window.history.replaceState({}, "", "/");
+    setAccountView("sign-in");
+  };
 
   // A deterministic product surface for visual regression work. Vite removes
   // this branch from production builds; no preview data can reach a user.
   if (import.meta.env.DEV && window.location.pathname === "/__preview") {
     return <TodayView onSignOut={() => undefined} preview={previewDay()} />;
+  }
+
+  if (accountView === "set-password") {
+    return (
+      <div className="app-shell">
+        <SetPasswordView
+          token={new URLSearchParams(window.location.search).get("token") ?? ""}
+          onDone={showSignIn}
+        />
+      </div>
+    );
+  }
+
+  if (accountView === "forgot") {
+    return (
+      <div className="app-shell">
+        <ForgotPasswordView onBack={showSignIn} />
+      </div>
+    );
   }
 
   if (session.status === "restoring") {
@@ -72,7 +101,11 @@ export function App() {
   if (session.status === "signedOut" || session.status === "signingIn") {
     return (
       <div className="app-shell">
-        <SignInView onSignIn={signIn} busy={session.status === "signingIn"} />
+        <SignInView
+          onSignIn={signIn}
+          onForgotPassword={() => setAccountView("forgot")}
+          busy={session.status === "signingIn"}
+        />
       </div>
     );
   }

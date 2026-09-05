@@ -138,4 +138,22 @@ export const auth = {
     }),
 
   signOut: () => request<{ authenticated: boolean }>("/api/v1/web-auth/logout", { method: "POST", body: "{}" }),
+
+  forgotPassword: (email: string) =>
+    request<{ accepted: boolean }>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  passwordToken: (token: string) =>
+    request<{ valid: boolean; purpose?: string; expiresAt?: string }>(
+      `/api/v1/auth/password-token?token=${encodeURIComponent(token)}`,
+      { method: "GET" },
+    ),
+
+  setPassword: (token: string, password: string) =>
+    request<{ updated: boolean }>("/api/v1/auth/set-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    }),
 };

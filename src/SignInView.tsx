@@ -8,9 +8,11 @@ import { signInMessage } from "./session";
  */
 export function SignInView({
   onSignIn,
+  onForgotPassword,
   busy,
 }: {
   onSignIn: (email: string, password: string) => Promise<void>;
+  onForgotPassword: () => void;
   busy: boolean;
 }) {
   const [email, setEmail] = useState("");
@@ -63,6 +65,10 @@ export function SignInView({
 
         <button className="primary-button" disabled={busy || !email.trim() || !password}>
           {busy ? "Loggar in…" : "Logga in"}
+        </button>
+
+        <button type="button" className="text-button" onClick={onForgotPassword} disabled={busy}>
+          Glömt lösenord?
         </button>
 
         {error && <p className="error-message">{error}</p>}
