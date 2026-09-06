@@ -52,6 +52,7 @@ type HistoryPayload = {
     content: string;
     created_at: string;
     attachment_url?: string | null;
+    attachment_urls?: string[];
     attachment_meal_id?: string | null;
   }[];
   next_cursor: string | null;
@@ -60,6 +61,12 @@ type HistoryPayload = {
 export type HistoryPage = { messages: ThreadMessage[]; nextCursor: string | null };
 
 export type ChatAttachment = { id: string; url: string };
+export type BugReportReceipt = {
+  id: string;
+  confirmation: string;
+  delivery_status: "created" | "queued";
+  github_issue_number?: number | null;
+};
 
 /**
  * Bilageadressen från backend är avsiktligt relativ. Den innehåller sin egen
@@ -79,17 +86,24 @@ export const chat = {
     const payload = await request<HistoryPayload>(`/api/v1/chat/messages?${query}`);
     return {
       messages: payload.messages
-        .map((message) => ({
-          id: message.id,
-          role: (message.role as ThreadRole) ?? "assistant",
-          text: message.content,
-          attachmentUrl: message.attachment_url ? attachmentUrl(message.attachment_url) : null,
-          attachmentMealId: message.attachment_meal_id ?? null,
-          actions: [],
-          streaming: false,
-          failed: false,
-          createdAt: new Date(message.created_at),
-        }))
+        .map((message) => {
+          const urls = (message.attachment_urls?.length
+            ? message.attachment_urls
+            : message.attachment_url ? [message.attachment_url] : [])
+            .map(attachmentUrl);
+          return {
+            id: message.id,
+            role: (message.role as ThreadRole) ?? "assistant",
+            text: message.content,
+            attachmentUrl: urls[0] ?? null,
+            attachmentUrls: urls,
+            attachmentMealId: message.attachment_meal_id ?? null,
+            actions: [],
+            streaming: false,
+            failed: false,
+            createdAt: new Date(message.created_at),
+          };
+        })
         .reverse(),
       nextCursor: payload.next_cursor,
     };
@@ -102,6 +116,16 @@ export const chat = {
     request<ChatAttachment>("/api/v1/chat/attachments", {
       method: "POST",
       body: JSON.stringify({ image_data_url: imageDataUrl }),
+    }),
+
+  submitBugReport: (message: string, attachmentIds: string[]) =>
+    request<BugReportReceipt>("/api/v1/improvements/bug-reports", {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        source_platform: "web",
+        attachment_ids: attachmentIds,
+      }),
     }),
 
   /**

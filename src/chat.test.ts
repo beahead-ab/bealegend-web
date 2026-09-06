@@ -124,6 +124,55 @@ describe("chattbilder", () => {
     });
   });
 
+  it("återställer alla bilder på en buggrapport ur historiken", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      messages: [{
+        id: "message-issue",
+        role: "user",
+        content: "issue: Nederkanten blir dubbel.",
+        created_at: "2026-09-06T08:00:00Z",
+        attachment_url: "/api/v1/chat/attachments/photo-1?t=one",
+        attachment_urls: [
+          "/api/v1/chat/attachments/photo-1?t=one",
+          "/api/v1/chat/attachments/photo-2?t=two",
+        ],
+      }],
+      next_cursor: null,
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    const page = await chat.history();
+
+    expect(page.messages[0].attachmentUrls).toEqual([
+      `${API_URL}/api/v1/chat/attachments/photo-1?t=one`,
+      `${API_URL}/api/v1/chat/attachments/photo-2?t=two`,
+    ]);
+  });
+
+  it("skickar buggrapporten och alla bilage-id utan att anropa AI-chatten", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: "report-1",
+      confirmation: "Buggrapporten är sparad.",
+      delivery_status: "created",
+      github_issue_number: 81,
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(chat.submitBugReport("issue: Nederkanten blir dubbel.", ["photo-1", "photo-2"]))
+      .resolves.toMatchObject({ confirmation: "Buggrapporten är sparad." });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${API_URL}/api/v1/improvements/bug-reports`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          message: "issue: Nederkanten blir dubbel.",
+          source_platform: "web",
+          attachment_ids: ["photo-1", "photo-2"],
+        }),
+      }),
+    );
+  });
+
   it("behåller redan absoluta och lokala bildadresser", () => {
     expect(attachmentUrl("https://cdn.example/photo.jpg")).toBe("https://cdn.example/photo.jpg");
     expect(attachmentUrl("data:image/png;base64,abc")).toBe("data:image/png;base64,abc");

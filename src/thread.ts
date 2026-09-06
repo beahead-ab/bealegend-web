@@ -8,6 +8,8 @@ export type ThreadMessage = {
   text: string;
   /** Bilden som hör till just den här turen, lokal eller återläst från servern. */
   attachmentUrl?: string | null;
+  /** Alla bilder på turen. `attachmentUrl` finns kvar för äldre historik. */
+  attachmentUrls?: string[];
   /** Måltiden bilden blev, när den har sparats. */
   attachmentMealId?: string | null;
   actions: ThreadAction[];

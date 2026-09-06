@@ -10,6 +10,7 @@ function conversation(): ReturnType<typeof useConversation> {
       role: "user",
       text: "Analysera och logga den här måltiden.",
       attachmentUrl: "https://api.example/photo.jpg",
+      attachmentUrls: ["https://api.example/photo.jpg"],
       attachmentMealId: "meal-1",
       actions: [],
       streaming: false,
@@ -24,6 +25,10 @@ function conversation(): ReturnType<typeof useConversation> {
     loadOlder: vi.fn(),
     send: vi.fn(),
     sendImage: vi.fn(),
+    stageIssueImages: vi.fn(),
+    issueImages: [],
+    clearIssueImages: vi.fn(),
+    isIssueDraft: false,
     finish: vi.fn(),
     photoError: null,
     canSend: false,
@@ -47,5 +52,31 @@ describe("chattbildens yta", () => {
     const html = renderToStaticMarkup(<CoachThread conversation={inactive} onClose={() => undefined} />);
 
     expect(html).toContain('<button class="thread-done">Klar</button>');
+  });
+
+  it("visar varje bild som hör till samma buggrapport", () => {
+    const report = conversation();
+    report.messages[0] = {
+      ...report.messages[0],
+      text: "issue: Två visuella fel.",
+      attachmentUrl: "https://api.example/one.jpg",
+      attachmentUrls: ["https://api.example/one.jpg", "https://api.example/two.jpg"],
+      attachmentMealId: null,
+    };
+
+    const html = renderToStaticMarkup(<CoachThread conversation={report} onClose={() => undefined} />);
+
+    expect(html).toContain('src="https://api.example/one.jpg"');
+    expect(html).toContain('src="https://api.example/two.jpg"');
+    expect(html).not.toContain("Måltid sparad");
+  });
+
+  it("låter en issue-utkast välja flera bilder utan att tvinga kameran", () => {
+    const report = { ...conversation(), draft: "issue: Fel", isIssueDraft: true };
+
+    const html = renderToStaticMarkup(<CoachThread conversation={report} onClose={() => undefined} />);
+
+    expect(html).toContain('multiple=""');
+    expect(html).not.toContain('capture="environment"');
   });
 });
