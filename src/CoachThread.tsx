@@ -99,13 +99,20 @@ export function CoachThread({
               const stamp = gap ? <p className="thread-gap">{timeLabel(message.createdAt)}</p> : null;
 
               if (message.role === "user") {
+                const photos = message.attachmentUrls?.length
+                  ? message.attachmentUrls
+                  : message.attachmentUrl ? [message.attachmentUrl] : [];
                 return (
                   <Fragment key={message.id}>
                     {stamp}
                     <div className="bubble-row user">
                       <div className="user-turn">
-                        {message.attachmentUrl && (
-                          <img className="thread-photo" src={message.attachmentUrl} alt="Bild skickad i chatten" />
+                        {photos.length > 0 && (
+                          <div className="thread-photos">
+                            {photos.map((photo, photoIndex) => (
+                              <img className="thread-photo" key={`${photo}-${photoIndex}`} src={photo} alt={`Bild ${photoIndex + 1} skickad i chatten`} />
+                            ))}
+                          </div>
                         )}
                         {message.text && <p className="bubble">{message.text}</p>}
                         {message.attachmentMealId && (

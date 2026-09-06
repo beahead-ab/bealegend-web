@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { attachmentUrl, chat } from "./chat";
+import { attachmentUrl, chat, type ChatAttachment } from "./chat";
 import { splitProse, type ThreadAction, type ThreadMessage } from "./thread";
 
 /**
@@ -11,6 +11,22 @@ export const INACTIVITY_MS = 30 * 60 * 1000;
 
 /** Kameran är en loggväg, inte en separat bildanalysyta. */
 export const PHOTO_PROMPT = "Analysera och logga den här måltiden.";
+export const MAX_ISSUE_IMAGES = 4;
+const ISSUE_PREFIX = /^\s*issue\s*:/i;
+
+export function isIssueCommand(text: string): boolean {
+  return ISSUE_PREFIX.test(text);
+}
+
+export function issueDescription(text: string): string | null {
+  if (!isIssueCommand(text)) return null;
+  const description = text.replace(ISSUE_PREFIX, "").trim();
+  return description || null;
+}
+
+export function deliveryForText(text: string): "bug_report" | "coach" {
+  return isIssueCommand(text) ? "bug_report" : "coach";
+}
 
 /** Actions whose successful completion changes the numbers and meal list on
  * the day surface. Read-only actions must not cause a second overview request. */
@@ -70,6 +86,7 @@ export function useConversation(onDailyOverviewChanged?: () => void) {
   const [lastActivity, setLastActivity] = useState<Date | null>(null);
   const [finished, setFinished] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [issueImages, setIssueImages] = useState<string[]>([]);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -110,6 +127,7 @@ export function useConversation(onDailyOverviewChanged?: () => void) {
       role: "user",
       text,
       attachmentUrl: image ?? null,
+      attachmentUrls: image ? [image] : [],
       attachmentMealId: null,
       actions: [],
       streaming: false,
@@ -145,7 +163,8 @@ export function useConversation(onDailyOverviewChanged?: () => void) {
       if (attachment) {
         // Byt till serveradressen så samma privata bild används resten av
         // sessionen. Om svaret därefter faller står bilden ändå kvar.
-        updateOutgoing((message) => ({ ...message, attachmentUrl: attachmentUrl(attachment.url) }));
+        const url = attachmentUrl(attachment.url);
+        updateOutgoing((message) => ({ ...message, attachmentUrl: url, attachmentUrls: [url] }));
       }
       await chat.stream(prompt, (event) => {
         if (event.kind === "text") {
@@ -179,11 +198,80 @@ export function useConversation(onDailyOverviewChanged?: () => void) {
     }
   }, [answering, messages, onDailyOverviewChanged]);
 
+  const submitIssue = useCallback(async (text: string) => {
+    if (!issueDescription(text) || answering) return;
+
+    const now = new Date();
+    const images = [...issueImages];
+    const outgoingId = nextLocalId();
+    const placeholderId = nextLocalId();
+    const outgoing: ThreadMessage = {
+      id: outgoingId,
+      role: "user",
+      text,
+      attachmentUrl: images[0] ?? null,
+      attachmentUrls: images,
+      attachmentMealId: null,
+      actions: [],
+      streaming: false,
+      failed: false,
+      createdAt: now,
+    };
+    const placeholder: ThreadMessage = {
+      id: placeholderId,
+      role: "assistant",
+      text: "",
+      actions: [],
+      streaming: true,
+      failed: false,
+      createdAt: now,
+    };
+
+    setMessages((current) => [...current, outgoing, placeholder]);
+    setAnswering(true);
+    setPhotoError(null);
+    setFinished(false);
+    setLastActivity(now);
+
+    const update = (id: string, change: (message: ThreadMessage) => ThreadMessage) =>
+      setMessages((current) => current.map((message) => (message.id === id ? change(message) : message)));
+
+    try {
+      const uploaded: ChatAttachment[] = [];
+      for (const image of images) uploaded.push(await chat.uploadAttachment(image));
+      const urls = uploaded.map((attachment) => attachmentUrl(attachment.url));
+      update(outgoingId, (message) => ({
+        ...message,
+        attachmentUrl: urls[0] ?? null,
+        attachmentUrls: urls,
+      }));
+      const receipt = await chat.submitBugReport(text, uploaded.map((attachment) => attachment.id));
+      update(placeholderId, (message) => ({
+        ...message,
+        text: receipt.confirmation,
+        streaming: false,
+      }));
+      setDraft("");
+      setIssueImages([]);
+    } catch (error) {
+      update(placeholderId, (message) => ({
+        ...message,
+        text: error instanceof Error ? error.message : "Buggrapporten kunde inte sparas just nu.",
+        streaming: false,
+        failed: true,
+      }));
+    } finally {
+      setAnswering(false);
+      setLastActivity(new Date());
+    }
+  }, [answering, issueImages]);
+
   const send = useCallback(async () => {
     const text = draft.trim();
     if (!text || answering) return;
-    await sendTurn(text);
-  }, [answering, draft, sendTurn]);
+    if (deliveryForText(text) === "bug_report") await submitIssue(text);
+    else await sendTurn(text);
+  }, [answering, draft, sendTurn, submitIssue]);
 
   const sendImage = useCallback(async (file: File) => {
     if (answering) return;
@@ -195,24 +283,54 @@ export function useConversation(onDailyOverviewChanged?: () => void) {
     }
   }, [answering, sendTurn]);
 
+  const stageIssueImages = useCallback(async (files: File[]) => {
+    if (answering || files.length === 0) return;
+    if (!isIssueCommand(draft)) {
+      setPhotoError("Skriv issue: följt av felet innan du bifogar buggbilder.");
+      return;
+    }
+    if (issueImages.length + files.length > MAX_ISSUE_IMAGES) {
+      setPhotoError("Högst fyra bilder kan bifogas till en buggrapport.");
+      return;
+    }
+    try {
+      const images = await Promise.all(files.map(imageDataUrl));
+      setIssueImages((current) => [...current, ...images]);
+      setPhotoError(null);
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "Bilden kunde inte läsas.");
+    }
+  }, [answering, draft, issueImages.length]);
+
   const finish = useCallback(() => {
     abort.current?.abort();
     setFinished(true);
   }, []);
 
+  const updateDraft = useCallback((value: string) => {
+    setDraft(value);
+    if (!isIssueCommand(value)) setIssueImages([]);
+  }, []);
+
   return {
     messages,
     draft,
-    setDraft,
+    setDraft: updateDraft,
     answering,
     hasMore: cursor !== null,
     loadingOlder,
     loadOlder,
     send,
     sendImage,
+    stageIssueImages,
+    issueImages,
+    clearIssueImages: () => setIssueImages([]),
+    isIssueDraft: isIssueCommand(draft),
     finish,
     photoError,
-    canSend: draft.trim().length > 0 && !answering,
+    canSend: draft.trim().length > 0
+      && (!isIssueCommand(draft) || issueDescription(draft) !== null)
+      && !answering,
     isActive: isConversationActive(lastActivity, finished),
     lastLine: lastAssistantLine(messages),
   };

@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   INACTIVITY_MS,
   PHOTO_PROMPT,
+  MAX_ISSUE_IMAGES,
   changesDailyOverview,
+  deliveryForText,
   imageDataUrl,
+  isIssueCommand,
+  issueDescription,
   isConversationActive,
   lastAssistantLine,
   promptFrom,
@@ -114,6 +118,29 @@ describe("kameraturen", () => {
     const file = new File(["hej"], "anteckning.txt", { type: "text/plain" });
 
     await expect(imageDataUrl(file)).rejects.toThrow("inte en bild");
+  });
+});
+
+describe("buggrapportkommandot", () => {
+  it("känns igen utan hänsyn till skiftläge eller blanksteg", () => {
+    expect(isIssueCommand(" issue: Nederkanten blir dubbel.")).toBe(true);
+    expect(isIssueCommand("ISSUE : Fel på knappen.")).toBe(true);
+    expect(isIssueCommand("Kan du skapa ett issue: åt mig?")).toBe(false);
+  });
+
+  it("kräver en beskrivning efter prefixet", () => {
+    expect(issueDescription("issue: Nederkanten blir dubbel.")).toBe("Nederkanten blir dubbel.");
+    expect(issueDescription("issue:   ")).toBeNull();
+    expect(issueDescription("Vanlig chatt")).toBeNull();
+  });
+
+  it("har samma gräns på fyra bilder som backend", () => {
+    expect(MAX_ISSUE_IMAGES).toBe(4);
+  });
+
+  it("avleder issue-kommandot från coachleveransen", () => {
+    expect(deliveryForText("issue: Fel i nederkanten.")).toBe("bug_report");
+    expect(deliveryForText("Hur ser dagens pass ut?")).toBe("coach");
   });
 });
 

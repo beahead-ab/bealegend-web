@@ -68,21 +68,34 @@ export function CoachFloor({
 
   return (
     <div className="floor">
+      {conversation.issueImages.length > 0 && (
+        <div className="floor-issue-preview" aria-label="Bilder till buggrapport">
+          <div className="floor-issue-thumbnails">
+            {conversation.issueImages.map((image, index) => (
+              <img key={`${image.slice(-24)}-${index}`} src={image} alt={`Buggbild ${index + 1}`} />
+            ))}
+          </div>
+          <span>{conversation.issueImages.length} av 4 bilder</span>
+          <button type="button" onClick={conversation.clearIssueImages}>Ta bort</button>
+        </div>
+      )}
       <div className="floor-composer">
         <input
           ref={camera}
           className="floor-file"
           type="file"
           accept="image/*"
-          capture="environment"
+          capture={conversation.isIssueDraft ? undefined : "environment"}
+          multiple={conversation.isIssueDraft}
           tabIndex={-1}
           aria-hidden="true"
           onChange={(event) => {
-            const file = event.currentTarget.files?.[0];
+            const files = Array.from(event.currentTarget.files ?? []);
             event.currentTarget.value = "";
-            if (!file) return;
+            if (!files.length) return;
             onOpenThread();
-            void conversation.sendImage(file);
+            if (conversation.isIssueDraft) void conversation.stageIssueImages(files);
+            else void conversation.sendImage(files[0]);
           }}
         />
         <button
