@@ -52,7 +52,7 @@ export function App() {
   // One call, not two. Two would be two independent state machines, and the
   // one holding signIn would not be the one being rendered — signing in would
   // succeed against a state nobody is looking at.
-  const { session, signIn, signOut } = useSession();
+  const { session, signIn, signOut, retryRestore } = useSession();
   const [accountView, setAccountView] = useState<"sign-in" | "forgot" | "set-password">(() =>
     window.location.pathname === "/set-password" ? "set-password" : "sign-in",
   );
@@ -94,11 +94,26 @@ export function App() {
     );
   }
 
-  if (session.status === "restoring") {
+  if (session.status === "restoring" || session.status === "signingOut") {
     return (
       <div className="app-shell">
         <div className="centered">
-          <p className="muted">Hämtar din session…</p>
+          <p className="muted" role="status">{session.status === "signingOut" ? "Loggar ut…" : "Hämtar din session…"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (session.status === "restoreFailed") {
+    return (
+      <div className="app-shell">
+        <div className="sign-in">
+          <section className="card sign-in-form" aria-labelledby="session-retry-title">
+            <h1 id="session-retry-title">Kan inte kontrollera din inloggning just nu</h1>
+            <p className="muted" role="status">Anslutningen kan vara tillfälligt bruten. Försök igen när den är tillbaka.</p>
+            <button type="button" className="primary-button" onClick={() => { void retryRestore(); }}>Försök igen</button>
+            <button type="button" className="text-button" onClick={() => { void signOut(); }}>Logga ut</button>
+          </section>
         </div>
       </div>
     );

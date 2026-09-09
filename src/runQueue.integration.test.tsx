@@ -1,7 +1,8 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, request } from "./api";
+import { ApiError, auth, request } from "./api";
+import { useSession } from "./session";
 import { useRun, type RunState } from "./useRun";
 import { type QueuedCommand } from "./runQueue";
 import { type TrainingRun, type TrainingSession } from "./training";
@@ -32,6 +33,13 @@ class Source {
 let host: HTMLDivElement;
 let root: Root;
 let current: RunState;
+let currentSession: ReturnType<typeof useSession>;
+function SessionProbe() {
+  currentSession = useSession();
+  return currentSession.session.status === "signedIn"
+    ? <Probe initial={run("current")} />
+    : <div>{currentSession.session.status}</div>;
+}
 function Probe({ initial }: { initial: TrainingRun | null }) {
   current = useRun(session, initial);
   return <div>{current.run?.id ?? "no-run"} / {current.pending} / {current.error}</div>;
@@ -50,10 +58,34 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   localStorage.clear();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("real useRun with persisted commands and delayed run answers", () => {
+  it("unknown session does not mount the run queue; confirmed retry keeps a 429 pending", async () => {
+    const command = queued("current");
+    localStorage.setItem("bal.training.queue", JSON.stringify([command]));
+    vi.spyOn(auth, "refresh").mockRejectedValueOnce(new ApiError(503, "offline"))
+      .mockResolvedValueOnce({ authenticated: true, user: { id: "A" } });
+    vi.mocked(request).mockRejectedValueOnce(new ApiError(429, "senare"));
+    await act(async () => root.render(<SessionProbe />));
+    expect(currentSession.session.status).toBe("restoreFailed");
+    expect(request).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem("bal.training.queue")!)).toEqual([command]);
+    await act(async () => currentSession.retryRestore());
+    expect(request).toHaveBeenCalledOnce();
+    expect(current.pending).toBe(1);
+    expect(current.run?.id).toBe("current");
+    const retained = JSON.parse(localStorage.getItem("bal.training.queue")!)[0];
+    expect(retained.command_id).toBe(command.command_id);
+    expect(retained.occurred_at).toBe(command.occurred_at);
+    vi.mocked(request).mockResolvedValueOnce(run("current", 2));
+    await act(async () => window.dispatchEvent(new Event("online")));
+    expect(current.pending).toBe(0);
+    expect(current.run?.state_version).toBe(2);
+  });
+
   it.each(["current", null])("does not select an old queued run when selected run is %s", async (selected) => {
     localStorage.setItem("bal.training.queue", JSON.stringify([queued("old")]));
     vi.mocked(request).mockResolvedValue(run("old", 90));

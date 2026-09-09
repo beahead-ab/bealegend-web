@@ -30,3 +30,10 @@ vid nästa försök, även efter omladdning. UI visar väntande antal och ett
 Detta är inte en levererad lösning för flera konton eller en godkänd
 produktionskandidat. VERSION1.18.2 är patch; PR83 reserverar1.18.1 och båda
 måste integreras mot färsk main med omkörda tester före eventuell leverans.
+# Integration med sessionsåterställningen
+
+PR83:s sessionsskydd från `c9cc9ca` är integrerat med detta köskydd inför
+gemensam verifiering. Ett extra test kopplar de verkliga hooks tillsammans:
+ett osäkert restore-503 monterar ingen passkö; efter bekräftad återställning
+behålls ett 429-avvisat kommando med samma identitet och skickas vid online.
+Detta är inte ett kontobytesprov: beständig kontoägarskap för kön återstår.
