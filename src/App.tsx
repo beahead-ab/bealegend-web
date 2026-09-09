@@ -94,11 +94,11 @@ export function App() {
     );
   }
 
-  if (session.status === "restoring") {
+  if (session.status === "restoring" || session.status === "signingOut") {
     return (
       <div className="app-shell">
         <div className="centered">
-          <p className="muted">Hämtar din session…</p>
+          <p className="muted" role="status">{session.status === "signingOut" ? "Loggar ut…" : "Hämtar din session…"}</p>
         </div>
       </div>
     );

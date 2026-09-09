@@ -16,6 +16,7 @@ export type Session =
   | { status: "restoreFailed" }
   | { status: "signedIn"; user?: SignedInUser }
   | { status: "signedOut" }
+  | { status: "signingOut" }
   | { status: "signingIn" };
 
 /**
@@ -53,11 +54,16 @@ export function signInMessage(error: unknown): string {
 export function useSession() {
   const [session, setSession] = useState<Session>({ status: "restoring" });
   const generation = useRef(0);
+  const pendingLogout = useRef<Promise<void> | null>(null);
 
   const retryRestore = useCallback(async () => {
     const attempt = ++generation.current;
     setSession({ status: "restoring" });
     try {
+      if (pendingLogout.current) {
+        await pendingLogout.current;
+        if (attempt !== generation.current) return;
+      }
       const result = await auth.refresh();
       if (attempt !== generation.current) return;
       if (result.authenticated === false) {
@@ -92,6 +98,12 @@ export function useSession() {
     const attempt = ++generation.current;
     setSession({ status: "signingIn" });
     try {
+      // The browser applies Set-Cookie independently of this hook's state.
+      // A previous logout must finish before a new login can set its cookie.
+      if (pendingLogout.current) {
+        await pendingLogout.current;
+        if (attempt !== generation.current) return;
+      }
       const result = await auth.signIn(email, password);
       if (attempt !== generation.current) return;
       if (result.authenticated !== true || typeof result.user?.id !== "string" || !result.user.id.trim()) {
@@ -110,14 +122,18 @@ export function useSession() {
   }, []);
 
   const signOut = useCallback(async () => {
-    generation.current += 1;
+    const attempt = ++generation.current;
     // Hide and forget locally before waiting for the server. No late response
     // from an older restore/login/logout may claim or clear a newer account.
     applyToCache({ status: "signedOut" });
-    setSession({ status: "signedOut" });
-    // The server's cookie is the session. Failing to reach it must still end
-    // the session here, or a network blip leaves someone stuck signed in.
-    await auth.signOut().catch(() => undefined);
+    setSession({ status: "signingOut" });
+    // Coalesce repeated logout calls and keep login behind the same request.
+    // Failure still leaves local data hidden; it cannot prove server logout.
+    const request = pendingLogout.current ?? auth.signOut().then(() => undefined).catch(() => undefined);
+    pendingLogout.current = request;
+    await request;
+    if (pendingLogout.current === request) pendingLogout.current = null;
+    if (attempt === generation.current) setSession({ status: "signedOut" });
   }, []);
 
   return { session, signIn, signOut, retryRestore };

@@ -88,7 +88,7 @@ describe("återställning utan obekräftad utloggning", () => {
     await act(async () => root.render(<Probe />));
     let pending!: Promise<void>;
     await act(async () => { pending = current.signOut(); });
-    expect(current.session.status).toBe("signedOut");
+    expect(current.session.status).toBe("signingOut");
     expect(localStorage.getItem("bal.days")).toBeNull();
     await act(async () => { logout.reject(new TypeError("offline")); await pending; });
     expect(current.session.status).toBe("signedOut");
@@ -123,17 +123,82 @@ describe("återställning utan obekräftad utloggning", () => {
     expect(localStorage.getItem("bal.days")).toBeNull();
   });
 
-  it("ett gammalt logout-svar kan inte radera ny B-session", async () => {
+  it.each(["success", "failure"])("inloggning B väntar på logout-%s innan dess cookie kan sättas", async (outcome) => {
     const logout = deferred<{ authenticated: boolean }>();
     vi.spyOn(auth, "refresh").mockResolvedValue(signedIn("A"));
     vi.spyOn(auth, "signOut").mockReturnValue(logout.promise);
-    vi.spyOn(auth, "signIn").mockResolvedValue(signedIn("B"));
+    const login = vi.spyOn(auth, "signIn").mockResolvedValue(signedIn("B"));
     await act(async () => root.render(<Probe />));
-    let pending!: Promise<void>;
-    await act(async () => { pending = current.signOut(); });
-    await act(async () => current.signIn("b@example.invalid", "test-only"));
-    await act(async () => { logout.resolve({ authenticated: false }); await pending; });
+    let pendingLogout!: Promise<void>;
+    let pendingLogin!: Promise<void>;
+    await act(async () => { pendingLogout = current.signOut(); });
+    await act(async () => { pendingLogin = current.signIn("b@example.invalid", "test-only"); });
+    expect(login).not.toHaveBeenCalled();
+    await act(async () => {
+      if (outcome === "success") logout.resolve({ authenticated: false });
+      else logout.reject(new TypeError("offline"));
+      await Promise.all([pendingLogout, pendingLogin]);
+    });
+    expect(login).toHaveBeenCalledTimes(1);
     expect(current.session).toEqual({ status: "signedIn", user: { id: "B" } });
+  });
+
+  it.each(["success", "401"])("ett äldre retry-%s kan inte avgöra ett senare återförsök", async (outcome) => {
+    const older = deferred<Awaited<ReturnType<typeof auth.refresh>>>();
+    const latest = deferred<Awaited<ReturnType<typeof auth.refresh>>>();
+    vi.spyOn(auth, "refresh").mockRejectedValueOnce(new ApiError(503, "offline"))
+      .mockReturnValueOnce(older.promise).mockReturnValueOnce(latest.promise);
+    await act(async () => root.render(<Probe />));
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    await act(async () => { first = current.retryRestore(); second = current.retryRestore(); });
+    await act(async () => {
+      if (outcome === "success") older.resolve(signedIn("B"));
+      else older.reject(new ApiError(401, "old token"));
+      await first;
+    });
+    expect(current.session.status).toBe("restoring");
+    expect(localStorage.getItem("bal.days")).toBe(cached);
+    await act(async () => { latest.resolve(signedIn("A")); await second; });
+    expect(current.session).toEqual({ status: "signedIn", user: { id: "A" } });
+    expect(localStorage.getItem("bal.days")).toBe(cached);
+  });
+
+  it("upprepade utloggningar delar ett serveranrop", async () => {
+    const logout = deferred<{ authenticated: boolean }>();
+    vi.spyOn(auth, "refresh").mockResolvedValue(signedIn("A"));
+    const logoutCall = vi.spyOn(auth, "signOut").mockReturnValue(logout.promise);
+    await act(async () => root.render(<Probe />));
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    await act(async () => { first = current.signOut(); second = current.signOut(); });
+    expect(logoutCall).toHaveBeenCalledTimes(1);
+    expect(current.session.status).toBe("signingOut");
+    await act(async () => { logout.resolve({ authenticated: false }); await Promise.all([first, second]); });
+    expect(current.session.status).toBe("signedOut");
+  });
+
+  it("ett direkt återförsök väntar också på logout innan refresh skickas", async () => {
+    const logout = deferred<{ authenticated: boolean }>();
+    const refresh = vi.spyOn(auth, "refresh").mockResolvedValueOnce(signedIn("A")).mockResolvedValueOnce({ authenticated: false });
+    vi.spyOn(auth, "signOut").mockReturnValue(logout.promise);
+    await act(async () => root.render(<Probe />));
+    let pendingLogout!: Promise<void>;
+    let pendingRetry!: Promise<void>;
+    await act(async () => { pendingLogout = current.signOut(); pendingRetry = current.retryRestore(); });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await act(async () => { logout.resolve({ authenticated: false }); await Promise.all([pendingLogout, pendingRetry]); });
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(current.session.status).toBe("signedOut");
+  });
+
+  it("unmount avvisar ett sent restore-svar innan det rör cachen", async () => {
+    const restore = deferred<Awaited<ReturnType<typeof auth.refresh>>>();
+    vi.spyOn(auth, "refresh").mockReturnValue(restore.promise);
+    await act(async () => root.render(<Probe />));
+    await act(async () => root.render(null));
+    await act(async () => restore.resolve(signedIn("B")));
+    expect(localStorage.getItem("bal.days")).toBe(cached);
   });
 });
 
@@ -163,5 +228,20 @@ describe("verklig app vid tillfälligt återställningsfel", () => {
     await act(async () => button.click());
     expect(host.querySelector('input[type="password"]')).not.toBeNull();
     expect(localStorage.getItem("bal.days")).toBeNull();
+  });
+
+  it("visar inget nytt inloggningsformulär förrän logout avgjorts", async () => {
+    const logout = deferred<{ authenticated: boolean }>();
+    vi.spyOn(auth, "refresh").mockRejectedValue(new ApiError(503, "offline"));
+    vi.spyOn(auth, "signOut").mockReturnValue(logout.promise);
+    await act(async () => root.render(<App />));
+    const button = [...host.querySelectorAll("button")].find((b) => b.textContent === "Logga ut")!;
+    await act(async () => button.click());
+    expect(localStorage.getItem("bal.days")).toBeNull();
+    expect(host.textContent).toContain("Loggar ut");
+    expect(host.textContent).not.toContain("Dag för");
+    expect(host.querySelector('input[type="password"]')).toBeNull();
+    await act(async () => logout.resolve({ authenticated: false }));
+    expect(host.querySelector('input[type="password"]')).not.toBeNull();
   });
 });
