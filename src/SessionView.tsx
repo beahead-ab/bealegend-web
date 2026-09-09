@@ -309,7 +309,7 @@ function RunBar({ session, state }: { session: TrainingSession; state: ReturnTyp
 
   return (
     <div className="run-bar">
-      {/* Spoken as well as shown. "Pausat" and "3 väntar på nätet" are exactly
+      {/* Spoken as well as shown. "Pausat" and "3 väntar på att skickas" are exactly
           the facts we chose to write in plain words — but only for whoever can
           see them. */}
       <div className="run-clock" role="status">
@@ -318,9 +318,9 @@ function RunBar({ session, state }: { session: TrainingSession; state: ReturnTyp
         {run.status === "paused" && <span className="run-status">Pausat</span>}
         {state.pending > 0 && (
           // Said plainly rather than hidden: the pass is being run, the
-          // commands are kept, and they will land. Silence here would read as
+          // commands are kept, but not yet acknowledged. Silence would read as
           // lost work.
-          <span className="run-status">{state.pending} väntar på nätet</span>
+          <span className="run-status">{state.pending} väntar på att skickas</span>
         )}
       </div>
       {state.restRemaining !== null && (

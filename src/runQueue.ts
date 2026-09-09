@@ -30,9 +30,8 @@ export type QueuedCommand = {
 };
 
 /**
- * A command that keeps losing to another device is not going to start winning.
- * Three rebases is generous for a pass being run on a phone and a laptop at
- * once; past that the queue says so rather than spinning.
+ * Bound work in one flush, never the lifetime of unsent user data. A later
+ * flush gets a fresh budget and keeps the original command identity.
  */
 export const MAX_ATTEMPTS = 3;
 
@@ -84,9 +83,6 @@ export function resolveConflict(
   if (target && isBehind(target, current, ordinalOf)) {
     return { kind: "drop", reason: "Passet har redan passerat det här momentet." };
   }
-  if (command.attempts + 1 >= MAX_ATTEMPTS) {
-    return { kind: "drop", reason: "Passet ändras från en annan enhet. Kommandot skickades inte." };
-  }
   return {
     kind: "resend",
     command: { ...command, expected_version: current.state_version, attempts: command.attempts + 1 },
@@ -108,6 +104,11 @@ export type SendOutcome =
 export function classify(error: unknown): SendOutcome {
   const stale = staleRunFrom<TrainingRun>(error);
   if (stale) return { kind: "conflict", run: stale };
+  // Auth/access failures are not proof that the command is invalid. Neither
+  // are timeout, an unrecognised conflict, early data or rate limiting.
+  if (error instanceof ApiError && [401, 403, 408, 409, 425, 429].includes(error.status)) {
+    return { kind: "offline" };
+  }
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
     return { kind: "rejected", message: error.message };
   }
@@ -167,6 +168,7 @@ export function sendCommand(command: QueuedCommand): Promise<TrainingRun> {
 
 export type FlushOutcome =
   | { kind: "drained" }
+  | { kind: "deferred"; pending: number; reason: string }
   | { kind: "offline"; pending: number };
 
 export type DroppedCommand = { command: QueuedCommand; reason: string };
@@ -188,7 +190,7 @@ export type DroppedCommand = { command: QueuedCommand; reason: string };
  */
 export function createRunQueue(options: {
   store: QueueStore;
-  ordinalOf: (stepId: string) => number | null;
+  ordinalOf: (stepId: string, runId: string) => number | null;
   send?: (command: QueuedCommand) => Promise<TrainingRun>;
   onRun?: (run: TrainingRun) => void;
   onDropped?: (dropped: DroppedCommand) => void;
@@ -203,7 +205,7 @@ export function createRunQueue(options: {
    * the conflict check exists to catch. Skipping it there would let a command
    * written before that change land as though it were written after.
    */
-  let ownVersion: number | null = null;
+  const ownVersions = new Map<string, number>();
 
   const persist = () => options.store.write(queue);
 
@@ -212,12 +214,14 @@ export function createRunQueue(options: {
   };
 
   async function drain(): Promise<FlushOutcome> {
+    let conflicts = 0;
     while (queue.length > 0) {
       // A command queued behind one of ours was written believing an older
       // version, and our own accepted command is what moved it. Sending the
       // stale number would buy a guaranteed conflict and a second round trip
       // for every command in a burst.
-      const command = ownVersion !== null && queue[0].expected_version < ownVersion
+      const ownVersion = ownVersions.get(queue[0].run_id);
+      const command = ownVersion !== undefined && queue[0].expected_version < ownVersion
         ? { ...queue[0], expected_version: ownVersion }
         : queue[0];
       let outcome: SendOutcome;
@@ -227,9 +231,13 @@ export function createRunQueue(options: {
         outcome = classify(error);
       }
 
+      if ((outcome.kind === "sent" || outcome.kind === "conflict") && outcome.run?.id !== command.run_id) {
+        return { kind: "deferred", pending: queue.length, reason: "Svaret gällde ett annat pass. Kommandot ligger kvar för återförsök." };
+      }
+
       if (outcome.kind === "sent") {
         queue = queue.slice(1);
-        ownVersion = outcome.run.state_version;
+        ownVersions.set(command.run_id, outcome.run.state_version);
         persist();
         options.onRun?.(outcome.run);
         continue;
@@ -237,17 +245,17 @@ export function createRunQueue(options: {
 
       if (outcome.kind === "conflict") {
         options.onRun?.(outcome.run);
-        // Every command behind this one was written against a version that no
-        // longer exists either, so a finished run empties the queue rather than
-        // failing each command in turn.
+        ownVersions.delete(command.run_id);
+        // A terminal answer only proves something about this run. Other runs
+        // keep their commands, ordering and independent version knowledge.
         if (isFinished(outcome.run)) {
-          for (const pending of queue) drop(pending, "Passet är redan avslutat.");
-          queue = [];
+          const finished = queue.filter((pending) => pending.run_id === command.run_id);
+          queue = queue.filter((pending) => pending.run_id !== command.run_id);
           persist();
-          return { kind: "drained" };
+          for (const pending of finished) drop(pending, "Passet är redan avslutat.");
+          continue;
         }
-        const resolution = resolveConflict(command, outcome.run, options.ordinalOf);
-        ownVersion = null;
+        const resolution = resolveConflict(command, outcome.run, (stepId) => options.ordinalOf(stepId, command.run_id));
         if (resolution.kind === "drop") {
           queue = queue.slice(1);
           drop(command, resolution.reason);
@@ -255,6 +263,10 @@ export function createRunQueue(options: {
           queue = [resolution.command, ...queue.slice(1)];
         }
         persist();
+        conflicts += 1;
+        if (resolution.kind === "resend" && conflicts >= MAX_ATTEMPTS) {
+          return { kind: "deferred", pending: queue.length, reason: "Passet ändras från en annan enhet. Kommandot ligger kvar för återförsök." };
+        }
         continue;
       }
 

@@ -144,10 +144,10 @@ describe("resolveConflict", () => {
     expect(resolution.kind).toBe("resend");
   });
 
-  it("gives up on a command that keeps losing", () => {
+  it("keeps a command that keeps losing rather than discarding user data", () => {
     const resolution = resolveConflict(command({ attempts: MAX_ATTEMPTS - 1 }), run(), ordinalOf);
 
-    expect(resolution.kind).toBe("drop");
+    expect(resolution.kind).toBe("resend");
   });
 
   /** A step from another session, or one this client never loaded. Guessing
@@ -163,6 +163,74 @@ describe("createRunQueue", () => {
   });
 
   const enqueued = { run_id: "r1", action: "complete_set" as const, expected_version: 5, device_id: "web", device_sequence: 1 };
+
+  it.each([401, 403, 408, 409, 425, 429, 503])("retains commands after HTTP %s and reuses their identity on retry", async (status) => {
+    const original = command();
+    const store = memoryStore([original]);
+    const send = vi.fn().mockRejectedValueOnce(new ApiError(status, "Vänta.")).mockResolvedValue(run());
+    const queue = createRunQueue({ store, ordinalOf, send });
+    expect(await queue.flush()).toEqual({ kind: "offline", pending: 1 });
+    expect(store.read()).toEqual([original]);
+    expect(await queue.flush()).toEqual({ kind: "drained" });
+    expect(send.mock.calls.map(([c]) => c.command_id)).toEqual([original.command_id, original.command_id]);
+  });
+
+  it("keeps versions separate across interleaved runs", async () => {
+    const commands = [command({ command_id: "a1" }), command({ command_id: "b1", run_id: "r2", expected_version: 1 }), command({ command_id: "a2" })];
+    const sent: Array<[string, number]> = [];
+    const queue = createRunQueue({ store: memoryStore(commands), ordinalOf, send: async (c) => {
+      sent.push([c.run_id, c.expected_version]);
+      return run({ id: c.run_id, state_version: c.run_id === "r1" ? 90 : 2 });
+    } });
+    await queue.flush();
+    expect(sent).toEqual([["r1", 5], ["r2", 1], ["r1", 90]]);
+  });
+
+  it.each(["completed", "cancelled"] as const)("only removes commands for the %s run", async (status) => {
+    const commands = [command({ command_id: "a1" }), command({ command_id: "b1", run_id: "r2" }), command({ command_id: "a2" })];
+    const store = memoryStore(commands);
+    const dropped = vi.fn();
+    const send = vi.fn(async (c: QueuedCommand) => {
+      if (c.run_id === "r1") throw conflict(run({ status }));
+      return run({ id: "r2" });
+    });
+    const queue = createRunQueue({ store, ordinalOf, send, onDropped: dropped });
+    expect(await queue.flush()).toEqual({ kind: "drained" });
+    expect(send.mock.calls.map(([c]) => c.command_id)).toEqual(["a1", "b1"]);
+    expect(dropped.mock.calls.map(([d]) => d.command.command_id)).toEqual(["a1", "a2"]);
+    expect(store.read()).toEqual([]);
+  });
+
+  it.each([false, true])("does not acknowledge or adopt an answer naming another run (conflict=%s)", async (stale) => {
+    const original = command();
+    const store = memoryStore([original]);
+    const onRun = vi.fn();
+    const onDropped = vi.fn();
+    const queue = createRunQueue({ store, ordinalOf, onRun, onDropped, send: async () => {
+      const other = run({ id: "r2", status: "completed" });
+      if (stale) throw conflict(other);
+      return other;
+    } });
+    expect(await queue.flush()).toMatchObject({ kind: "deferred", pending: 1 });
+    expect(store.read()).toEqual([original]);
+    expect(onRun).not.toHaveBeenCalled();
+    expect(onDropped).not.toHaveBeenCalled();
+  });
+
+  it("pauses a conflict loop without dropping and resumes with the same ID after reload", async () => {
+    const store = memoryStore([command({ attempts: 20, action: "complete", step_id: undefined })]);
+    const onDropped = vi.fn();
+    const send = vi.fn(async () => { throw conflict(run()); });
+    const first = createRunQueue({ store, ordinalOf, send, onDropped });
+    expect(await first.flush()).toMatchObject({ kind: "deferred", pending: 1 });
+    expect(send).toHaveBeenCalledTimes(MAX_ATTEMPTS);
+    expect(store.read()[0]).toMatchObject({ command_id: "c1", attempts: 20 + MAX_ATTEMPTS, expected_version: 7 });
+    expect(onDropped).not.toHaveBeenCalled();
+    const retried = vi.fn(async (_command: QueuedCommand) => run());
+    const second = createRunQueue({ store, ordinalOf, send: retried });
+    expect(await second.flush()).toEqual({ kind: "drained" });
+    expect(retried.mock.calls[0][0]).toMatchObject({ command_id: "c1" });
+  });
 
   it("sends in order, one at a time", async () => {
     const inFlight: string[] = [];

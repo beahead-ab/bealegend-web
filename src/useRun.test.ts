@@ -89,6 +89,11 @@ describe("setKey", () => {
 describe("newerOf", () => {
   const at = (version: number): TrainingRun => ({ ...run("a"), state_version: version });
 
+  it("does not compare another run's version or replace the selected run", () => {
+    const current = at(1);
+    expect(newerOf(current, { ...at(90), id: "old-run" })).toBe(current);
+  });
+
   /** The rule the stream needs: only it can deliver two readings out of order,
    *  because the queue sends one at a time. */
   it("ignores a reading that overtook a newer one", () => {
