@@ -102,8 +102,11 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
   const sequence = useRef(0);
   const device = useMemo(() => deviceId(), []);
 
-  const adopt = useCallback((next: TrainingRun) => {
-    setRun((current) => newerOf(current, next));
+  const adopt = useCallback((next: TrainingRun, replace = false) => {
+    // Queue receipts/streams can belong to older runs. Only an explicit start
+    // selects a different run; versions are comparable within one run only.
+    if (!replace && (runRef.current?.id !== next.id || next.state_version < runRef.current.state_version)) return;
+    setRun((current) => replace ? next : newerOf(current, next));
     setAnsweredAt(Date.now());
     setNow(Date.now());
   }, []);
@@ -118,7 +121,7 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     () =>
       createRunQueue({
         store: browserStore(),
-        ordinalOf: (stepId) => ordinals.current(stepId),
+        ordinalOf: (stepId, runId) => runRef.current?.id === runId ? ordinals.current(stepId) : null,
         onRun: adopt,
         onDropped: ({ reason }) => setError(reason),
       }),
@@ -127,7 +130,8 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
 
   const flush = useCallback(async () => {
     const outcome = await queue.flush();
-    setPending(outcome.kind === "offline" ? outcome.pending : 0);
+    setPending(outcome.kind === "drained" ? 0 : outcome.pending);
+    if (outcome.kind === "deferred") setError(outcome.reason);
   }, [queue]);
 
   // The queue schedules nothing of its own, so this is where trying again lives:
@@ -191,7 +195,7 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     setStarting(true);
     setError("");
     try {
-      adopt(await startRun(session.id));
+      adopt(await startRun(session.id), true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Passet kunde inte startas.");
     } finally {
@@ -295,7 +299,7 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
  * Only the stream can deliver these out of order; the queue sends one at a time.
  */
 export function newerOf(current: TrainingRun | null, next: TrainingRun): TrainingRun {
-  return current && next.state_version < current.state_version ? current : next;
+  return current && (current.id !== next.id || next.state_version < current.state_version) ? current : next;
 }
 
 /** The clock, as a pass is read: 48:12 rather than 2892 seconds. */
