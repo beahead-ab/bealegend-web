@@ -1,17 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, auth, type SignedInUser } from "./api";
 import { claim, forget } from "./lastKnown";
 
 /**
- * Four states, and `restoring` is the one that matters. Without it the app
+ * `restoring` prevents the app from painting a sign-in form before it knows
+ * whether the cookie works. `restoreFailed` keeps that uncertainty explicit:
+ * a transport/server failure is not evidence that the session ended.
+ * Without this distinction the app
  * would paint the sign-in form for the instant it takes to ask whether the
  * cookie is still good — a returning user would see a flash of the one screen
  * they should never see.
  */
 export type Session =
   | { status: "restoring" }
+  | { status: "restoreFailed" }
   | { status: "signedIn"; user?: SignedInUser }
   | { status: "signedOut" }
+  | { status: "signingOut" }
   | { status: "signingIn" };
 
 /**
@@ -48,36 +53,68 @@ export function signInMessage(error: unknown): string {
 
 export function useSession() {
   const [session, setSession] = useState<Session>({ status: "restoring" });
+  const generation = useRef(0);
+  const pendingLogout = useRef<Promise<void> | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    auth
-      .refresh()
-      .then((result) => {
-        if (cancelled) return;
-        applyToCache({ status: "signedIn", user: result.user });
-        setSession({ status: "signedIn", user: result.user });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // An expired session is a session that ended. It ends here too.
+  const retryRestore = useCallback(async () => {
+    const attempt = ++generation.current;
+    setSession({ status: "restoring" });
+    try {
+      if (pendingLogout.current) {
+        await pendingLogout.current;
+        if (attempt !== generation.current) return;
+      }
+      const result = await auth.refresh();
+      if (attempt !== generation.current) return;
+      if (result.authenticated === false) {
         applyToCache({ status: "signedOut" });
         setSession({ status: "signedOut" });
-      });
-    return () => {
-      cancelled = true;
-    };
+      } else if (result.authenticated === true && typeof result.user?.id === "string" && result.user.id.trim()) {
+        applyToCache({ status: "signedIn", user: result.user });
+        setSession({ status: "signedIn", user: result.user });
+      } else {
+        // A malformed answer is not a confirmed identity or a logout.
+        setSession({ status: "restoreFailed" });
+      }
+    } catch (error) {
+      if (attempt !== generation.current) return;
+      if (error instanceof ApiError && error.status === 401) {
+        applyToCache({ status: "signedOut" });
+        setSession({ status: "signedOut" });
+      } else {
+        // Keep owner-scoped memory, but do not mount any account surface until
+        // the server confirms an identity. Never infer the user from cache.
+        setSession({ status: "restoreFailed" });
+      }
+    }
   }, []);
 
+  useEffect(() => {
+    void retryRestore();
+    return () => { generation.current += 1; };
+  }, [retryRestore]);
+
   const signIn = useCallback(async (email: string, password: string) => {
+    const attempt = ++generation.current;
     setSession({ status: "signingIn" });
     try {
+      // The browser applies Set-Cookie independently of this hook's state.
+      // A previous logout must finish before a new login can set its cookie.
+      if (pendingLogout.current) {
+        await pendingLogout.current;
+        if (attempt !== generation.current) return;
+      }
       const result = await auth.signIn(email, password);
+      if (attempt !== generation.current) return;
+      if (result.authenticated !== true || typeof result.user?.id !== "string" || !result.user.id.trim()) {
+        throw new ApiError(502, "Inloggningen kunde inte bekräftas. Försök igen.");
+      }
       // Before the new session can read a single day: anything belonging to
       // whoever used this browser last is gone.
       applyToCache({ status: "signedIn", user: result.user });
       setSession({ status: "signedIn", user: result.user });
     } catch (error) {
+      if (attempt !== generation.current) return;
       applyToCache({ status: "signedOut" });
       setSession({ status: "signedOut" });
       throw error;
@@ -85,14 +122,19 @@ export function useSession() {
   }, []);
 
   const signOut = useCallback(async () => {
-    // The server's cookie is the session. Failing to reach it must still end
-    // the session here, or a network blip leaves someone stuck signed in.
-    await auth.signOut().catch(() => undefined);
-    // Cleared whether or not the server could be reached. A network blip must
-    // not leave one person's measurements readable to the next.
+    const attempt = ++generation.current;
+    // Hide and forget locally before waiting for the server. No late response
+    // from an older restore/login/logout may claim or clear a newer account.
     applyToCache({ status: "signedOut" });
-    setSession({ status: "signedOut" });
+    setSession({ status: "signingOut" });
+    // Coalesce repeated logout calls and keep login behind the same request.
+    // Failure still leaves local data hidden; it cannot prove server logout.
+    const request = pendingLogout.current ?? auth.signOut().then(() => undefined).catch(() => undefined);
+    pendingLogout.current = request;
+    await request;
+    if (pendingLogout.current === request) pendingLogout.current = null;
+    if (attempt === generation.current) setSession({ status: "signedOut" });
   }, []);
 
-  return { session, signIn, signOut };
+  return { session, signIn, signOut, retryRestore };
 }
