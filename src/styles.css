@@ -700,10 +700,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   background: linear-gradient(to top, var(--canvas) 62%, transparent);
 }
 
-.floor-composer, .floor-ongoing {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+.floor-composer-panel, .floor-ongoing {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
@@ -714,18 +711,21 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   box-shadow: 0 2px 10px var(--shadow-soft);
 }
 
+.floor-composer, .floor-ongoing {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
 .floor-issue-preview {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  max-width: 720px;
-  margin: 0 auto 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
-  box-shadow: 0 2px 10px var(--shadow-soft);
+  margin: 0 0 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
   color: var(--muted);
   font-size: 12px;
 }
@@ -733,9 +733,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .floor-issue-thumbnails img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; }
 .floor-issue-preview span { flex: 1; }
 .floor-issue-preview button { color: var(--blue); }
+.floor-issue-preview button:disabled { opacity: 0.35; cursor: default; }
 
 .floor-composer textarea {
   flex: 1;
+  min-width: 0;
   border: 0;
   outline: none;
   resize: none;
