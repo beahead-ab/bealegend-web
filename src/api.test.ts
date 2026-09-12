@@ -11,6 +11,20 @@ function reply(status: number, body: unknown): Response {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("request", () => {
+  it.each([
+    ["Bildlagring är inte konfigurerad.", "Profilbilder är inte aktiverade ännu. Kontakta administratören."],
+    ["S3 private diagnostic", "Bildlagringen är tillfälligt otillgänglig. Försök igen senare."],
+    [undefined, "Bildlagringen är tillfälligt otillgänglig. Försök igen senare."],
+  ])("describes avatar storage failures honestly (%s)", async (message, expected) => {
+    const fetchMock = vi.fn().mockResolvedValue(reply(502, {
+      error: { code: "avatar_storage_unavailable", message },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(request("/api/v1/settings/avatar", { method: "POST", body: "{}" }))
+      .rejects.toMatchObject({ status: 502, code: "avatar_storage_unavailable", message: expected });
+    expect(fetchMock).toHaveBeenCalledOnce(); // No pointless refresh or blind retry.
+  });
+
   it("reads the server's sentence out of the error envelope", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       reply(400, { error: { code: "invalid", message: "Datumet finns inte." } }),

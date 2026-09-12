@@ -272,6 +272,27 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 
 .primary-button:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* Profilbilden bor i Inställningar, aldrig som ny ikon i huvudets navigation. */
+.profile-card { max-width: 680px; }
+.profile-card h2 { margin: 6px 0 12px; font: 30px/1.2 Georgia, serif; }
+.profile-card p { overflow-wrap: anywhere; }
+.profile-identity { display: flex; align-items: center; gap: 18px; margin: 26px 0; }
+.profile-identity > div { min-width: 0; }
+.profile-avatar { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; flex: 0 0 80px; }
+.profile-initial { display: grid; place-items: center; background: var(--canvas); border: 1px solid var(--line); font: 34px Georgia, serif; }
+.profile-name { margin: 0; font-weight: 600; }
+.profile-email { margin: 4px 0 0; }
+.profile-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.profile-card button { min-height: 44px; }
+.profile-card button:disabled { opacity: .45; cursor: not-allowed; }
+.profile-card .primary-button { background: var(--blue); color: var(--canvas); }
+.profile-danger { color: var(--red); }
+.profile-hint { font-size: 13px; }
+.profile-confirm { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); }
+.profile-confirm .pill { margin: 4px 8px 4px 0; }
+.profile-success { padding: 12px; border-radius: 8px; color: var(--ok-ink); background: var(--ok-canvas); }
+.profile-card .error-message { display: block; }
+
 .text-button {
   justify-self: center;
   padding: 4px 8px;
@@ -700,10 +721,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   background: linear-gradient(to top, var(--canvas) 62%, transparent);
 }
 
-.floor-composer, .floor-ongoing {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+.floor-composer-panel, .floor-ongoing {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
@@ -714,18 +732,21 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
   box-shadow: 0 2px 10px var(--shadow-soft);
 }
 
+.floor-composer, .floor-ongoing {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
 .floor-issue-preview {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  max-width: 720px;
-  margin: 0 auto 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--surface);
-  box-shadow: 0 2px 10px var(--shadow-soft);
+  margin: 0 0 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
   color: var(--muted);
   font-size: 12px;
 }
@@ -733,9 +754,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .floor-issue-thumbnails img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; }
 .floor-issue-preview span { flex: 1; }
 .floor-issue-preview button { color: var(--blue); }
+.floor-issue-preview button:disabled { opacity: 0.35; cursor: default; }
 
 .floor-composer textarea {
   flex: 1;
+  min-width: 0;
   border: 0;
   outline: none;
   resize: none;

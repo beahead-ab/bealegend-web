@@ -5,6 +5,7 @@ import { CoachThread } from "./CoachThread";
 import { ConversationWorkspace } from "./ConversationWorkspace";
 import { PlanView } from "./PlanView";
 import { ProgramView } from "./ProgramView";
+import { ProfileView } from "./ProfileView";
 import { SessionView } from "./SessionView";
 import { useConversation } from "./conversation";
 import {
@@ -102,6 +103,7 @@ function DayHeader({
   runActive,
   atFuture,
   openPlan,
+  openSettings,
 }: {
   date: Date;
   move: (days: number) => void;
@@ -111,6 +113,7 @@ function DayHeader({
   runActive: boolean;
   atFuture: boolean;
   openPlan: () => void;
+  openSettings: () => void;
 }) {
   const today = isToday(date);
   return (
@@ -129,7 +132,7 @@ function DayHeader({
       <button className="pill" onClick={openPlan}>Planen</button>
 
       <div className="header-actions">
-        <AccountMenu name={name} runActive={runActive} onSignOut={onSignOut} />
+        <AccountMenu name={name} runActive={runActive} onSignOut={onSignOut} openSettings={openSettings} />
       </div>
     </header>
   );
@@ -148,10 +151,11 @@ function initials(name: string | null | undefined): string {
  *
  * It now lives behind the account, and asks while a run is going.
  */
-function AccountMenu({ name, runActive, onSignOut }: {
+export function AccountMenu({ name, runActive, onSignOut, openSettings }: {
   name: string | null | undefined;
   runActive: boolean;
   onSignOut: () => void;
+  openSettings: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -196,7 +200,10 @@ function AccountMenu({ name, runActive, onSignOut }: {
               <button className="account-item danger" onClick={onSignOut}>Logga ut</button>
             </>
           ) : (
-            <button className="account-item" onClick={() => setConfirming(true)}>Logga ut</button>
+            <>
+              <button className="account-item" role="menuitem" onClick={() => { setOpen(false); openSettings(); }}>Inställningar</button>
+              <button className="account-item" role="menuitem" onClick={() => setConfirming(true)}>Logga ut</button>
+            </>
           )}
         </div>
       )}
@@ -486,6 +493,10 @@ export function TodayView({ onSignOut, user, preview }: {
       />
     );
   }
+  else if (surface === "settings") {
+    content = <ProfileView userId={userId} onClose={() => setSurface("today")}
+      floor={<CoachFloor conversation={conversation} onOpenThread={() => openThreadFrom("settings")} inThread={false} />} />;
+  }
   else content = (
     <div className="app-shell day-shell">
       <DayHeader
@@ -497,6 +508,7 @@ export function TodayView({ onSignOut, user, preview }: {
         runActive={!!activeRun && !isFinished(activeRun)}
         atFuture={atFuture}
         openPlan={() => setSurface("plan")}
+        openSettings={() => setSurface("settings")}
       />
 
       {error && (
