@@ -41,6 +41,7 @@ import { BackIcon, ChevronIcon } from "./icons";
 import { addDays, rangeLabel } from "./history";
 import { Countdown, ItemList, LineChart, MetricRow, RangeBar, Ring } from "./widgets";
 import { NutritionModule } from "./modules";
+import { StepsModule } from "./StepsModule";
 
 const SWEDISH = "sv-SE";
 
@@ -570,6 +571,7 @@ export function TodayView({ onSignOut, user, preview }: {
             : (
               <BuiltInSurface
                 overview={shownDay}
+                showSteps={config === null || config.widgets.some((widget) => widget.binding === "daily.steps")}
                 openThread={() => openThreadFrom("today")}
                 openTraining={() => setSurface("session")}
                 runningLabel={runningLabel}
@@ -711,6 +713,10 @@ function drawWidget(
   // null below and leaves no trace.
   const measured = word.measured ? word.measured(overview) : true;
 
+  if (widget.binding === "daily.steps" && (widget.presentation === "metricRow" || widget.presentation === "ring")) {
+    return <StepsModule overview={overview} presentation={widget.presentation} />;
+  }
+
   switch (widget.presentation) {
     case "rangeBar": {
       const reading = word.range?.(overview);
@@ -788,8 +794,9 @@ function drawWidget(
  * net bolted on: it is the answer for every account that has never touched
  * its dashboard.
  */
-function BuiltInSurface({ overview, openThread, openTraining, runningLabel }: {
+function BuiltInSurface({ overview, showSteps, openThread, openTraining, runningLabel }: {
   overview: DailyOverview;
+  showSteps: boolean;
   openThread: () => void;
   openTraining: () => void;
   runningLabel: string;
@@ -801,6 +808,12 @@ function BuiltInSurface({ overview, openThread, openTraining, runningLabel }: {
         <h2>Träning</h2>
         <MetricRow label="Dagens pass" value={runningLabel} onClick={openTraining} />
       </section>
+      {showSteps && (
+        <section className="card group-card">
+          <h2>Hälsa</h2>
+          <StepsModule overview={overview} />
+        </section>
+      )}
     </>
   );
 }
