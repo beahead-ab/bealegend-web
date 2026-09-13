@@ -571,6 +571,7 @@ export function TodayView({ onSignOut, user, preview }: {
             : (
               <BuiltInSurface
                 overview={shownDay}
+                showSteps={config === null || config.widgets.some((widget) => widget.binding === "daily.steps")}
                 openThread={() => openThreadFrom("today")}
                 openTraining={() => setSurface("session")}
                 runningLabel={runningLabel}
@@ -793,8 +794,9 @@ function drawWidget(
  * net bolted on: it is the answer for every account that has never touched
  * its dashboard.
  */
-function BuiltInSurface({ overview, openThread, openTraining, runningLabel }: {
+function BuiltInSurface({ overview, showSteps, openThread, openTraining, runningLabel }: {
   overview: DailyOverview;
+  showSteps: boolean;
   openThread: () => void;
   openTraining: () => void;
   runningLabel: string;
@@ -806,10 +808,12 @@ function BuiltInSurface({ overview, openThread, openTraining, runningLabel }: {
         <h2>Träning</h2>
         <MetricRow label="Dagens pass" value={runningLabel} onClick={openTraining} />
       </section>
-      <section className="card group-card">
-        <h2>Hälsa</h2>
-        <StepsModule overview={overview} />
-      </section>
+      {showSteps && (
+        <section className="card group-card">
+          <h2>Hälsa</h2>
+          <StepsModule overview={overview} />
+        </section>
+      )}
     </>
   );
 }

@@ -78,4 +78,12 @@ describe("stegmodulen i den verkliga dagsytan", () => {
     expect(host.querySelector(".steps-distance")?.textContent).toBe("Sträcka: 0,15 km");
     expect(host.textContent).not.toContain("4 331");
   });
+
+  it("återinför inte steg via reservytan för en sparad tom dashboard", async () => {
+    vi.mocked(dashboard.fetchDashboard).mockResolvedValue({
+      schema_version: "dashboard.v1", revision: 3, widgets: [],
+    });
+    await render();
+    expect(host.querySelector(".steps-module")).toBeNull();
+  });
 });
