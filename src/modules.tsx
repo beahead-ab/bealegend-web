@@ -113,20 +113,26 @@ export function NutritionModule({
   return (
     <section className="nutrition-module" aria-labelledby="nutrition-heading">
       <Eyebrow>Näring</Eyebrow>
-      <h2 id="nutrition-heading" className="visually-hidden">Näring idag</h2>
+      <h2 id="nutrition-heading" className="visually-hidden">Näring för vald dag</h2>
       {hasRange ? (
         <>
           <HeroNumber
             value={overview.calories.consumed}
             unit="kcal"
-            caption={`av ${swedishNumber(minimum)}–${swedishNumber(maximum)}`}
+            caption={`registrerat · mål ${swedishNumber(minimum)}–${swedishNumber(maximum)}`}
             approximate={hasUncertainty}
           />
           <RangeBar
             scale={{ floor: minimum, ceiling: maximum }}
-            value={overview.calories.consumed}
+            value={overview.meals.length > 0 || overview.calories.consumed > 0 ? overview.calories.consumed : null}
             valueRange={hasUncertainty ? { min: minimumConsumed, max: maximumConsumed } : null}
           />
+          <p className="range-caption muted">Målintervallet är {swedishNumber(minimum)}–{swedishNumber(maximum)} kcal.
+            {overview.meals.length > 0 || overview.calories.consumed > 0
+              ? " Blå zon: mål. Markören: registrerad energi."
+              : " Ingen mat är registrerad för den här dagen."}
+            {hasUncertainty && " Bandet runt markören visar det uppskattade spannet."}
+          </p>
         </>
       ) : overview.calories.can_calculate ? (
         <HeroNumber

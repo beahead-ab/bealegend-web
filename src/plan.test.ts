@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dayStateLabel,
+  planDayLabel,
   isViewedDay,
   loadShare,
   planDate,
@@ -13,6 +14,22 @@ import {
   type PlanWeek,
   type TrainingPlan,
 } from "./plan";
+
+it("distinguishes expired plans from confirmed missed workouts without changing completion", () => {
+  expect(dayStateLabel("planned", "2026-09-25", "2026-09-27")).toBe("Inte registrerat");
+  expect(dayStateLabel("planned", "2026-09-27", "2026-09-27")).toBe("Planerat");
+  expect(dayStateLabel("planned", "2026-09-28", "2026-09-27")).toBe("Planerat");
+  expect(dayStateLabel("completed", "2026-09-25", "2026-09-27")).toBe("Gjort");
+  expect(dayStateLabel("discarded", "2026-09-25", "2026-09-27")).toBe("Kastat");
+});
+
+it("labels a discarded extra workout without deleting the record or changing mixed days", () => {
+  const discarded = { title: "Pass", status: "discarded", source: "extra", session_type: "strength", routine_revision_id: "s" };
+  const day = { date: "2026-09-26", state: "extra", sessions: [discarded] };
+  expect(planDayLabel(day, "2026-09-27")).toBe("Kastat");
+  expect(day.sessions).toHaveLength(1);
+  expect(planDayLabel({ ...day, sessions: [discarded, { ...discarded, status: "completed" }] }, "2026-09-27")).toBe("Extra");
+});
 
 const week = (over: Partial<PlanWeek> = {}): PlanWeek => ({
   week: 1,

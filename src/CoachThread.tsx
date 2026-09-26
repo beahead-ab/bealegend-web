@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import type { useConversation } from "./conversation";
 import { CoachFloor } from "./CoachFloor";
 import { actionSymbol, opensGap, receiptText, splitProse, threadDays, timeLabel } from "./thread";
@@ -30,6 +30,9 @@ export function CoachThread({
 }) {
   const scroll = useRef<HTMLDivElement>(null);
   const [behind, setBehind] = useState(false);
+  const positioned = useRef(false);
+  const follow = useRef(true);
+  const previous = useRef<{ firstId: string | null; height: number; top: number } | null>(null);
   const days = threadDays(conversation.messages);
 
   /**
@@ -41,23 +44,32 @@ export function CoachThread({
    * scrolling ancestor, which on iOS can pull the whole page under the fixed
    * floor.
    */
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = scroll.current;
     // Hidden means folded, not abandoned. Reading position must stay exactly
     // where it was while an answer continues to arrive behind the panel.
     if (!element || !open) return;
-    if (isNearBottom(element)) {
+    if (conversation.messages.length === 0) return;
+    const firstId = conversation.messages[0]?.id ?? null;
+    const olderPrepended = previous.current && previous.current.firstId !== firstId
+      && conversation.messages.some((message) => message.id === previous.current!.firstId);
+    if (positioned.current && olderPrepended) {
+      element.scrollTop = previous.current!.top + element.scrollHeight - previous.current!.height;
+    } else if (!positioned.current || follow.current) {
       element.scrollTop = element.scrollHeight;
       setBehind(false);
     } else {
       setBehind(true);
     }
+    positioned.current = true;
+    previous.current = { firstId, height: element.scrollHeight, top: element.scrollTop };
   }, [conversation.messages, open]);
 
   const toBottom = () => {
     const element = scroll.current;
     if (!element) return;
     element.scrollTop = element.scrollHeight;
+    follow.current = true;
     setBehind(false);
   };
 
@@ -81,7 +93,12 @@ export function CoachThread({
       <div
         className="thread-scroll"
         ref={scroll}
-        onScroll={(event) => setBehind(!isNearBottom(event.currentTarget))}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          follow.current = isNearBottom(element);
+          setBehind(!follow.current);
+          if (previous.current) previous.current = { ...previous.current, top: element.scrollTop, height: element.scrollHeight };
+        }}
       >
         {conversation.hasMore && (
           <button className="thread-earlier" onClick={() => void conversation.loadOlder()} disabled={conversation.loadingOlder}>
@@ -159,7 +176,7 @@ export function CoachThread({
       </div>
 
       {behind && (
-        <button className="thread-catchup" onClick={toBottom}>Nytt svar ↓</button>
+        <button className="thread-catchup" onClick={toBottom}>Till senaste ↓</button>
       )}
 
       <CoachFloor conversation={conversation} onOpenThread={() => undefined} inThread focused={open} />

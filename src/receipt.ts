@@ -1,5 +1,4 @@
 import {
-  isFinished,
   measure,
   type TrainingRun,
   type TrainingRunSetResult,
@@ -71,7 +70,9 @@ export function loggedLine(result: TrainingRunSetResult): string {
  * som ett facit.
  */
 export function receiptFrom(session: TrainingSession, run: TrainingRun): Receipt | null {
-  if (!isFinished(run)) return null;
+  // Terminal is not the same as completed: cancelled/discarded runs must
+  // never receive a success receipt, even if an older response retains sets.
+  if (run.status !== "completed" && run.status !== "completed_partial") return null;
   const results = run.set_results ?? [];
 
   const byStep = new Map<string, TrainingRunSetResult[]>();

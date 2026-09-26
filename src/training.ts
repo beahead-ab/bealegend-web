@@ -202,7 +202,7 @@ export function blocks(session: TrainingSession): Block[] {
   const result: Block[] = [];
   for (const moment of session.moments) {
     const last = result[result.length - 1];
-    if (last && last.position === moment.block_item_position) {
+    if (last && last.position === moment.block_item_position && last.moments[0].phase === moment.phase) {
       last.moments.push(moment);
     } else {
       result.push({ position: moment.block_item_position, moments: [moment] });
