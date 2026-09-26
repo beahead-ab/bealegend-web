@@ -101,9 +101,18 @@ export function swedishNumber(value: number): string {
  * which is every account on its first day. Says only what can be read straight
  * off the day, and says "Idag." rather than inventing a number it does not have.
  */
-export function ruleBasedSentence(overview: DailyOverview, showsTraining: boolean): string {
+export function ruleBasedSentence(overview: DailyOverview, showsTraining: boolean, today = isoDate(new Date())): string {
   const clauses: string[] = [];
   const calories = overview.calories;
+
+  // A past day's missing logs are not evidence that someone ate nothing.
+  // Never give a historical day today's remaining-energy instruction.
+  if (overview.date < today) {
+    return overview.meals.length > 0
+      ? `Registrerat den här dagen: ${swedishNumber(calories.consumed)} kcal.`
+      : "Ingen mat är registrerad den här dagen.";
+  }
+  if (overview.date > today) return "Planering för den här dagen.";
 
   if (calories.can_calculate && calories.goal > 0) {
     clauses.push(
@@ -112,8 +121,15 @@ export function ruleBasedSentence(overview: DailyOverview, showsTraining: boolea
         : `Du har ${swedishNumber(calories.remaining)} kcal kvar`,
     );
   }
-  if (showsTraining) {
-    clauses.push(clauses.length === 0 ? "Dagens pass väntar" : "dagens pass väntar");
+  if (showsTraining && overview.training) {
+    const status = overview.training.today_session_status;
+    const title = overview.training.today_session_title;
+    const text = status === "planned" && title ? "dagens pass är planerat"
+      : status === "active" || status === "in_progress" ? "du har ett pågående pass"
+      : status === "paused" ? "ditt pass är pausat"
+      : status === "completed" || status === "completed_partial" ? "ett pass är registrerat som genomfört"
+      : !status && !title ? "inget pass är planerat idag" : null;
+    if (text) clauses.push(clauses.length === 0 ? text[0].toLocaleUpperCase("sv-SE") + text.slice(1) : text);
   }
   if (clauses.length === 0) return "Idag.";
   return `${clauses.join(" och ")}.`;
@@ -168,7 +184,7 @@ export function healthMeasured(overview: DailyOverview): boolean {
 }
 
 /** The coach's sentence when it wrote one, the rule's when it did not. */
-export function heroSentence(overview: DailyOverview, showsTraining: boolean): string {
+export function heroSentence(overview: DailyOverview, showsTraining: boolean, today = isoDate(new Date())): string {
   const headline = overview.headline?.trim();
-  return headline ? headline : ruleBasedSentence(overview, showsTraining);
+  return headline && overview.date === today ? headline : ruleBasedSentence(overview, showsTraining, today);
 }

@@ -95,8 +95,17 @@ const DAY_STATE_LABEL: Record<string, string> = {
  * från servern: klienten ska slippa uppfinna det ur en tom lista, och två
  * klienter som uppfann det hade skrivit olika.
  */
-export function dayStateLabel(state: string): string {
+export function dayStateLabel(state: string, date?: string, today?: string): string {
+  if (state === "planned" && date && today && date < today) return "Inte registrerat";
+  if (state === "discarded" || state === "cancelled") return "Kastat";
   return DAY_STATE_LABEL[state] ?? state;
+}
+
+export function planDayLabel(day: PlanDay, today: string): string {
+  // The aggregate may say "extra" based on origin alone. Keep the record
+  // visible, but never imply a completed extra workout when all runs were cast.
+  if (day.sessions.length > 0 && day.sessions.every((session) => ["cancelled", "discarded"].includes(session.status))) return "Kastat";
+  return dayStateLabel(day.state, day.date, today);
 }
 
 const number = (value: number) => value.toLocaleString("sv-SE");

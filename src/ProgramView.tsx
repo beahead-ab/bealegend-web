@@ -240,7 +240,7 @@ function ProgramSkeleton() {
  * uträkning: fälten har legat i `training-home.v1` sedan programmets fakta
  * kom, och den här klienten läste dem bara inte.
  */
-export function ProgramView({ date, programId, conversation, onClose, onOpenThread, onOpenProgram }: {
+export function ProgramView({ date, programId, conversation, onClose, onOpenThread, onOpenProgram, onOpenPlan }: {
   date: Date;
   /** Programmet man tittar på, eller null för det man följer. */
   programId?: string | null;
@@ -248,6 +248,7 @@ export function ProgramView({ date, programId, conversation, onClose, onOpenThre
   onClose: () => void;
   onOpenThread: () => void;
   onOpenProgram: (id: string | null) => void;
+  onOpenPlan?: () => void;
 }) {
   const [home, setHome] = useState<TrainingHome | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -284,7 +285,7 @@ export function ProgramView({ date, programId, conversation, onClose, onOpenThre
         {/* Ur ett program man tittar på går vägen tillbaka till det man följer,
             inte hela vägen ut. Ett steg i taget, som överallt annars. */}
         <button className="thread-back" onClick={() => (chosen ? onOpenProgram(null) : onClose())}>
-          <BackIcon /> {chosen ? "Tillbaka" : "Idag"}
+          <BackIcon /> Tillbaka
         </button>
       </header>
 
@@ -314,6 +315,7 @@ export function ProgramView({ date, programId, conversation, onClose, onOpenThre
       )}
 
       {program && <Program program={program} />}
+      {following && onOpenPlan && <button className="primary-button" onClick={onOpenPlan}>Se planerade pass</button>}
 
       {/* Följ-panelen bara för ett program man inte redan följer. */}
       {program && !following && (

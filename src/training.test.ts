@@ -56,6 +56,15 @@ const set = (over: Partial<PrescribedSet> = {}): PrescribedSet => ({
 });
 
 describe("blocks", () => {
+  it("separates warmup, main and cooldown even inside one block without reordering", () => {
+    const result = blocks(session([
+      moment({ id: "a", block_item_position: 1, phase: "warmup" }),
+      moment({ id: "b", block_item_position: 1, phase: "main" }),
+      moment({ id: "c", block_item_position: 1, phase: "cooldown" }),
+    ]));
+    expect(result.map((block) => block.moments[0].phase)).toEqual(["warmup", "main", "cooldown"]);
+    expect(result.flatMap((block) => block.moments.map((item) => item.id))).toEqual(["a", "b", "c"]);
+  });
   it("gathers the moments of one block together", () => {
     const result = blocks(session([
       moment({ id: "a", block_item_position: 1 }),

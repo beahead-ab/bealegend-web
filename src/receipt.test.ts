@@ -44,10 +44,14 @@ describe("receiptFrom", () => {
     expect(receiptFrom(session(moment("m1", "Knäböj")), run({ status: "paused" }))).toBeNull();
   });
 
-  it("ger ett kvitto för varje avslutat läge", () => {
-    for (const status of ["completed", "completed_partial", "cancelled", "discarded"]) {
+  it("ger ett kvitto endast för genomförda lägen", () => {
+    for (const status of ["completed", "completed_partial"]) {
       expect(receiptFrom(session(moment("m1", "Knäböj")), run({ status }))).not.toBeNull();
     }
+  });
+
+  it.each(["cancelled", "discarded"])("ger aldrig ett framgångskvitto för %s, även med gamla set", (status) => {
+    expect(receiptFrom(session(moment("m1", "Knäböj")), run({ status, set_results: [result()] }))).toBeNull();
   });
 
   it("läser serverns lista, inte klientens minne", () => {

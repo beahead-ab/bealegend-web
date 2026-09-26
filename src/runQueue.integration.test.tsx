@@ -63,6 +63,35 @@ afterEach(async () => {
 });
 
 describe("real useRun with persisted commands and delayed run answers", () => {
+  it("uses one start for a double click and reuses the exact payload after a lost response", async () => {
+    await act(async () => root.render(<Probe initial={null} />));
+    let fail!: (error: Error) => void;
+    vi.mocked(request).mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; }));
+    let first!: Promise<void>;
+    await act(async () => { first = current.start(); void current.start(); });
+    expect(request).toHaveBeenCalledTimes(1);
+    const body = vi.mocked(request).mock.calls[0][1]?.body;
+    const sent = JSON.parse(String(body));
+    expect(sent.local_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(sent.source_device).toBe("web");
+    await act(async () => { fail(new Error("response lost")); await first; });
+    vi.mocked(request).mockResolvedValueOnce(run("started"));
+    await act(async () => current.start());
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(request).mock.calls[1][1]?.body).toBe(body);
+    expect(current.run?.id).toBe("started");
+  });
+  it("restores the elapsed clock after unmount rather than resetting to the last saved seconds", async () => {
+    const now = Date.now();
+    const active = { ...run("active"), started_at: new Date(now - 300_000).toISOString(), accumulated_pause_seconds: 30, active_seconds: 60 };
+    await act(async () => root.render(<Probe initial={active} />));
+    expect(current.activeSeconds).toBeGreaterThanOrEqual(270);
+    await act(async () => root.render(<div />));
+    await act(async () => root.render(<Probe initial={active} />));
+    expect(current.activeSeconds).toBeGreaterThanOrEqual(270);
+    await act(async () => Source.instances.at(-1)!.emit({ ...active, status: "paused", active_seconds: 270, state_version: 2 }));
+    expect(current.activeSeconds).toBe(270);
+  });
   it("unknown session does not mount the run queue; confirmed retry keeps a 429 pending", async () => {
     const command = queued("current");
     localStorage.setItem("bal.training.queue", JSON.stringify([command]));

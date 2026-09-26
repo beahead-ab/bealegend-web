@@ -271,15 +271,22 @@ function Moment({ moment, here, state }: {
  * lived here would disagree with the server the first time the rule changed on
  * one side only — and the server is the side that decides.
  */
-function RunBar({ session, state }: { session: TrainingSession; state: ReturnType<typeof useRun> }) {
+function RunBar({ session, state, date }: { session: TrainingSession; state: ReturnType<typeof useRun>; date: Date }) {
   const { run } = state;
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [confirmingToday, setConfirmingToday] = useState(false);
+  const otherDay = date.toDateString() !== new Date().toDateString();
 
   if (!run) {
     return (
       <div className="run-bar">
-        <button className="primary-button" onClick={() => void state.start()} disabled={state.starting}>
-          {state.starting ? "Startar …" : "Starta passet"}
+        {confirmingToday && <p className="run-question">Du tittar på ett annat datum. Startar du nu registreras passet idag, inte på den valda dagen.</p>}
+        {confirmingToday && <button className="pill" onClick={() => setConfirmingToday(false)} disabled={state.starting}>Tillbaka</button>}
+        <button className="primary-button" onClick={() => {
+          if (otherDay && !confirmingToday) setConfirmingToday(true);
+          else void state.start();
+        }} disabled={state.starting}>
+          {state.starting ? "Startar …" : confirmingToday ? "Starta och registrera idag" : "Starta passet"}
         </button>
       </div>
     );
@@ -354,7 +361,7 @@ function RunBar({ session, state }: { session: TrainingSession; state: ReturnTyp
   );
 }
 
-function Session({ session, activeRun }: { session: TrainingSession; activeRun: TrainingRun | null }) {
+function Session({ session, activeRun, date, onClose }: { session: TrainingSession; activeRun: TrainingRun | null; date: Date; onClose: () => void }) {
   const estimate = estimateLabel(session.estimated_seconds);
   const state = useRun(session, activeRun);
   const here = state.run?.current_step_id ?? null;
@@ -363,7 +370,13 @@ function Session({ session, activeRun }: { session: TrainingSession; activeRun: 
   // Kvittot ersätter passvyn i stället för att läggas ovanpå den. Det som
   // skulle göras är gjort, och att låta ordinationen stå kvar under hade
   // bjudit in till att logga ett set till i ett pass som är avslutat.
-  if (receipt) return <Receipt receipt={receipt} />;
+  if (receipt) return <><Receipt receipt={receipt} /><button className="pill" onClick={onClose}>Till översikten</button></>;
+  if (state.run?.status === "cancelled" || state.run?.status === "discarded") {
+    return <><section className="hero" role="status"><p>Passet kastades.</p>
+      <span className="hero-rule" aria-hidden="true" />
+    </section><p className="session-summary">Det här är inte ett genomfört pass.</p>
+      <button className="pill" onClick={onClose}>Till översikten</button></>;
+  }
 
   return (
     <>
@@ -384,10 +397,10 @@ function Session({ session, activeRun }: { session: TrainingSession; activeRun: 
       {!canRun(session) && <p className="session-notice">{modeReason(session)}</p>}
 
       {state.error && <p className="error-message" role="status">{state.error}</p>}
-      {canRun(session) && <RunBar session={session} state={state} />}
+      {canRun(session) && <RunBar session={session} state={state} date={date} />}
 
-      {blocks(session).map((block) => (
-        <section className="card block-card" key={block.position}>
+      {blocks(session).map((block, index) => (
+        <section className="card block-card" key={`${block.position}-${index}`}>
           <h2>{phaseLabel(block.moments[0].phase)}</h2>
           {block.moments.map((moment) => (
             <Moment key={moment.id} moment={moment} here={moment.id === here} state={state} />
@@ -473,14 +486,15 @@ export function SessionView({ date, conversation, onClose, onOpenThread, onOpenP
 
       {!home && !error && <PassSkeleton />}
 
-      {sessions && sessions.length === 0 && (
+      {!running && sessions && sessions.length === 0 && (
         <div className="hero">
-          <p>Inget pass står inplanerat idag.</p>
+          <p>Inget pass är planerat för {dayLabel(date).toLocaleLowerCase("sv-SE")}.</p>
+          <button className="pill" onClick={onOpenProgram}>Se programmet</button>
           <span className="hero-rule" aria-hidden="true" />
         </div>
       )}
 
-      {open ? <Session key={open.id} session={open} activeRun={activeRun} /> : (
+      {open ? <Session key={open.id} session={open} activeRun={activeRun} date={date} onClose={onClose} /> : (
         sessions && sessions.length > 1 && (
           <>
             <div className="hero">

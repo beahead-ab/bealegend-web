@@ -34,6 +34,18 @@ function overview(exact: boolean): DailyOverview {
 }
 
 describe("NutritionModule", () => {
+  it("explains the goal and keeps missing logs distinct from a measured zero", () => {
+    const base = overview(true);
+    const html = renderToStaticMarkup(<NutritionModule overview={{ ...base, meals: [], calories: {
+      ...base.calories, consumed: 0, consumed_min: 0, consumed_max: 0,
+    } }} onAddMeal={() => undefined} />);
+    expect(html).toContain("Ingen mat är registrerad");
+    expect(html).toContain("Målintervallet är");
+    expect(html).not.toContain('class="nutrition-range-marker"');
+    expect(html).not.toContain("åt du 0");
+    const logged = renderToStaticMarkup(<NutritionModule overview={base} onAddMeal={() => undefined} />);
+    expect(logged).toContain("Blå zon: mål. Markören: registrerad energi.");
+  });
   it("visar serverns osäkerhet och vätskemål", () => {
     const html = renderToStaticMarkup(
       <NutritionModule overview={overview(false)} onAddMeal={() => undefined} bindings={["daily.water"]} />,

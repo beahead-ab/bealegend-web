@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockText, newerOf, setKey } from "./useRun";
+import { clockText, newerOf, setKey, runActiveSeconds } from "./useRun";
 import { isEarlyFinish, type TrainingRun, type TrainingSession } from "./training";
 
 const session = (ids: string[]): TrainingSession => ({
@@ -58,6 +58,22 @@ describe("clockText", () => {
    *  it negative should read as a start, not as a minus sign. */
   it("never runs backwards", () => {
     expect(clockText(-30)).toBe("0:00");
+  });
+});
+
+describe("server-anchored active duration", () => {
+  const start = Date.parse("2026-08-21T16:00:00Z");
+  it("survives navigation, reload and suspended timers without double-counting saved time", () => {
+    const active = { ...run("a"), active_seconds: 100, accumulated_pause_seconds: 30 };
+    expect(runActiveSeconds(active, start + 300_000, start + 299_000)).toBe(270);
+    expect(runActiveSeconds(active, start + 300_000, start + 100_000)).toBe(270);
+  });
+  it.each(["paused", "completed", "completed_partial", "discarded", "cancelled"])("does not advance %s", (status) => {
+    expect(runActiveSeconds({ ...run("a"), status, active_seconds: 90 }, start + 300_000, start)).toBe(90);
+  });
+  it("keeps the saved duration with backwards/future clocks, and supports legacy invalid timestamps", () => {
+    expect(runActiveSeconds({ ...run("a"), active_seconds: 90 }, start - 10_000, start)).toBe(90);
+    expect(runActiveSeconds({ ...run("a"), active_seconds: 90, started_at: "invalid" }, start + 10_000, start)).toBe(100);
   });
 });
 

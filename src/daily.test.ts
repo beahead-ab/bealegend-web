@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   dayOnScreen,
   heroSentence,
@@ -17,6 +17,8 @@ import {
  * below pins the real character so the intent is not lost.
  */
 const plain = (text: string) => text.replace(/\u00A0/g, " ");
+beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date(2026, 7, 21, 12)); });
+afterEach(() => vi.useRealTimers());
 
 const day = (over: Partial<DailyOverview["calories"]> = {}, headline: string | null = null): DailyOverview => ({
   date: "2026-08-21",
@@ -36,7 +38,7 @@ describe("heroSentence", () => {
   });
 
   it("falls back for every account with nothing distilled", () => {
-    expect(plain(heroSentence(day(), true))).toBe("Du har 1 240 kcal kvar och dagens pass väntar.");
+    expect(plain(heroSentence(day(), true))).toBe("Du har 1 240 kcal kvar.");
   });
 
   /** An empty string from the server is not a sentence. */
@@ -56,8 +58,24 @@ describe("ruleBasedSentence", () => {
     expect(ruleBasedSentence(day({ can_calculate: false }), false)).toBe("Idag.");
   });
 
-  it("promises the session alone when calories cannot be calculated", () => {
-    expect(ruleBasedSentence(day({ can_calculate: false }), true)).toBe("Dagens pass väntar.");
+  it("does not promise a workout just because the training module is enabled", () => {
+    expect(ruleBasedSentence(day({ can_calculate: false }), true)).toBe("Idag.");
+  });
+  it("uses the selected day's real planned session", () => {
+    const overview = { ...day({ can_calculate: false }), training: {
+      week_start: "2026-08-17", sessions_planned: 3, sessions_completed: 1,
+      today_session_status: "planned", today_session_title: "Styrka",
+    } };
+    expect(ruleBasedSentence(overview, true)).toBe("Dagens pass är planerat.");
+    expect(ruleBasedSentence({ ...overview, training: { ...overview.training, today_session_status: "completed" } }, true)).toBe("Ett pass är registrerat som genomfört.");
+    expect(ruleBasedSentence({ ...overview, training: { ...overview.training, today_session_status: null, today_session_title: null } }, true)).toBe("Inget pass är planerat idag.");
+    expect(ruleBasedSentence(overview, false)).toBe("Idag.");
+  });
+  it("never describes missing historical logs as zero eaten, remaining calories or today's headline", () => {
+    const yesterday = { ...day({}, "Dagens pass väntar"), date: "2026-08-20" };
+    expect(heroSentence(yesterday, true)).toBe("Ingen mat är registrerad den här dagen.");
+    expect(heroSentence({ ...yesterday, meals: [{ id: "m", description: "Mat", calories: 1160, logged_at: "2026-08-20T12:00:00Z" }] }, true)).toContain("Registrerat den här dagen");
+    expect(heroSentence({ ...yesterday, date: "2026-08-22" }, true)).toBe("Planering för den här dagen.");
   });
 });
 

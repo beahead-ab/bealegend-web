@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_URL, newCommandId, request } from "./api";
+import { isoDate } from "./daily";
 import {
   browserStore,
   createRunQueue,
@@ -34,18 +35,22 @@ export function deviceId(): string {
   }
 }
 
-function startRun(sessionId: string): Promise<TrainingRun> {
+function startRun(body: string): Promise<TrainingRun> {
   return request<TrainingRun>("/api/v1/training/runs", {
     method: "POST",
-    body: JSON.stringify({
-      session_id: sessionId,
-      // Idempotent on the server, so a start that times out and is tried again
-      // resumes the same run instead of being refused as a second one.
-      client_request_id: newCommandId(),
-      started_at: new Date().toISOString(),
-      source_device: "web",
-    }),
+    body,
   });
+}
+
+/** Same clock contract as the server: elapsed wall time minus accumulated
+ * pauses. active_seconds is a saved floor, not an anchor to add elapsed time
+ * to a second time. Paused and terminal runs keep their saved duration. */
+export function runActiveSeconds(run: TrainingRun, now: number, answeredAt: number): number {
+  const saved = Math.max(0, run.active_seconds);
+  if (run.status !== "active") return saved;
+  const start = Date.parse(run.started_at);
+  if (!Number.isFinite(start)) return saved + Math.max(0, Math.floor((now - answeredAt) / 1000));
+  return Math.max(saved, Math.floor((now - start) / 1000) - Math.max(0, run.accumulated_pause_seconds ?? 0));
 }
 
 /** What this client logged during this session, for marking the sets it knows
@@ -91,6 +96,10 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
   const [answeredAt, setAnsweredAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   const [starting, setStarting] = useState(false);
+  const startInFlight = useRef(false);
+  // Keep the exact payload on an ambiguous failure. Retrying in this mounted
+  // view then resolves the original start rather than creating another one.
+  const startAttempt = useRef<{ sessionId: string; body: string } | null>(null);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState("");
   const [logged, setLogged] = useState<Record<string, LoggedSet>>({});
@@ -184,24 +193,34 @@ export function useRun(session: TrainingSession | null, initial: TrainingRun | n
     return () => source.close();
   }, [runId, adopt]);
 
-  const activeSeconds = run
-    ? run.status === "active"
-      ? run.active_seconds + Math.max(0, Math.floor((now - answeredAt) / 1000))
-      : run.active_seconds
-    : 0;
+  const activeSeconds = run ? runActiveSeconds(run, now, answeredAt) : 0;
 
   const start = useCallback(async () => {
-    if (!session || starting) return;
+    if (!session || startInFlight.current) return;
+    startInFlight.current = true;
     setStarting(true);
     setError("");
     try {
-      adopt(await startRun(session.id), true);
+      if (startAttempt.current?.sessionId !== session.id) {
+        const started = new Date();
+        startAttempt.current = { sessionId: session.id, body: JSON.stringify({
+          session_id: session.id,
+          client_request_id: newCommandId(),
+          started_at: started.toISOString(),
+          local_date: isoDate(started),
+          source_device: "web",
+        }) };
+      }
+      const startedRun = await startRun(startAttempt.current.body);
+      runRef.current = startedRun;
+      adopt(startedRun, true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Passet kunde inte startas.");
     } finally {
+      startInFlight.current = false;
       setStarting(false);
     }
-  }, [session, starting, adopt]);
+  }, [session, adopt]);
 
   const act = useCallback(
     (action: RunAction, extra: Partial<QueuedCommand> = {}) => {

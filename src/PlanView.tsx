@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CoachFloor } from "./CoachFloor";
 import type { useConversation } from "./conversation";
 import {
-  dayStateLabel,
+  planDayLabel,
   fetchTrainingPlan,
   isViewedDay,
   loadShare,
@@ -16,6 +16,7 @@ import {
   type TrainingPlan,
 } from "./plan";
 import { BackIcon, ChevronIcon } from "./icons";
+import { isoDate } from "./daily";
 
 type Conversation = ReturnType<typeof useConversation>;
 
@@ -72,7 +73,7 @@ function Days({ week, plan, onOpenSession }: {
           key={day.date}
           className={isViewedDay(day, plan) ? `plan-day state-${day.state} today` : `plan-day state-${day.state}`}
         >
-          <span className="plan-day-name muted">{weekdayLabel(day.date)}</span>
+          <span className="plan-day-name muted">{weekdayLabel(day.date)}<br />{planDate(day.date).toLocaleDateString("sv-SE", { day: "numeric", month: "numeric" })}</span>
           <span className="plan-day-body">
             {/* Passets namn när det finns ett, annars dagens ord. En tom dag
                 säger »Vila« därför att servern säger det — inte därför att
@@ -90,10 +91,10 @@ function Days({ week, plan, onOpenSession }: {
                   {session.title}
                 </button>
               ))
-              : <span className="muted">{dayStateLabel(day.state)}</span>}
+              : <span className="muted">{planDayLabel(day, isoDate(new Date()))}</span>}
           </span>
           {day.sessions.length > 0 && (
-            <span className="plan-day-state muted">{dayStateLabel(day.state)}</span>
+            <span className="plan-day-state muted">{planDayLabel(day, isoDate(new Date()))}</span>
           )}
         </li>
       ))}

@@ -27,6 +27,36 @@ const render = async (conversation: Conversation) => {
 };
 
 describe("bug report composer, iOS issue 121 parity", () => {
+  it("remeasures an unchanged draft when a hidden composer becomes visible", async () => {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: ResizeObserverCallback) { observers.push(callback); }
+      observe() {} disconnect() {}
+    });
+    await render(report({ draft: "Långt befintligt utkast" }));
+    const field = host.querySelector("textarea")!;
+    expect(field.style.height).toBe("36px");
+    const notify = (width: number) => observers.forEach((callback) => callback([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver));
+    await act(async () => notify(0));
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 130 });
+    await act(async () => notify(240));
+    expect(field.style.height).toBe("130px");
+  });
+  it("reserves the actual fixed composer height and removes the reservation on unmount", async () => {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: ResizeObserverCallback) { observers.push(callback); }
+      observe() {} disconnect() {}
+    });
+    await act(async () => root.render(<div className="app-shell"><CoachFloor conversation={report()} onOpenThread={() => undefined} inThread={false} /></div>));
+    const surface = host.querySelector<HTMLElement>(".app-shell")!;
+    const floor = host.querySelector<HTMLElement>(".floor")!;
+    vi.spyOn(floor, "getBoundingClientRect").mockReturnValue({ height: 230 } as DOMRect);
+    await act(async () => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+    expect(surface.style.getPropertyValue("--floor-height")).toBe("230px");
+    await act(async () => root.render(<div className="app-shell" />));
+    expect(surface.style.getPropertyValue("--floor-height")).toBe("");
+  });
   it("reflows existing text after a viewport resize and keeps the height ceiling", async () => {
     await render(report());
     const field = host.querySelector("textarea")!;

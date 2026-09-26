@@ -1,9 +1,32 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { CameraIcon, MicIcon, SendIcon, StopIcon } from "./icons";
 import { appendTranscript, useDictation } from "./useDictation";
 import type { useConversation } from "./conversation";
 
 type Conversation = ReturnType<typeof useConversation>;
+
+/** Reserve the actual fixed composer's height, including attachments/errors
+ * and wrapped text. A fixed 92px allowance hid the last workout controls. */
+function FloorContainer({ children, inThread }: { children: ReactNode; inThread: boolean }) {
+  const floor = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (inThread) return; // In chat the composer participates in flex layout.
+    const element = floor.current;
+    const surface = element?.closest<HTMLElement>(".app-shell");
+    if (!element || !surface) return;
+    const measure = () => surface.style.setProperty("--floor-height", `${Math.ceil(element.getBoundingClientRect().height)}px`);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+      surface.style.removeProperty("--floor-height");
+    };
+  }, [inThread]);
+  return <div className="floor" ref={floor}>{children}</div>;
+}
 
 /**
  * The floor (§3): one row, on every surface, that is the app's primary way in.
@@ -36,12 +59,23 @@ export function CoachFloor({
       const element = field.current;
       if (!element) return;
       element.style.height = "auto";
-      element.style.height = `${Math.min(element.scrollHeight, 148)}px`;
+      element.style.height = `${Math.max(36, Math.min(element.scrollHeight, 148))}px`;
     };
     resize();
+    // Both surfaces stay mounted. Their width becomes zero while hidden;
+    // measure again on reveal, not just on draft or window-size changes.
+    let previousWidth = -1;
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width !== previousWidth) {
+        previousWidth = width;
+        if (width > 0) resize();
+      }
+    });
+    if (field.current) observer?.observe(field.current);
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, [conversation.draft, conversation.isActive, conversation.lastLine, inThread]);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", resize); };
+  }, [conversation.draft, conversation.isActive, conversation.lastLine, inThread, focused]);
 
   // A keyboard user who opens the panel has already chosen to speak. Move the
   // caret into the same field once it is visible; closing returns focus to the
@@ -56,12 +90,12 @@ export function CoachFloor({
   // shows the coach's last line and a dot instead of an empty field.
   if (!inThread && conversation.isActive && conversation.lastLine) {
     return (
-      <div className="floor">
+      <FloorContainer inThread={inThread}>
         <button className="floor-ongoing" onClick={onOpenThread} data-chat-entry>
           <span className="floor-line">{conversation.lastLine}</span>
           <span className="floor-dot" aria-hidden="true" />
         </button>
-      </div>
+      </FloorContainer>
     );
   }
 
@@ -72,7 +106,7 @@ export function CoachFloor({
   };
 
   return (
-    <div className="floor">
+    <FloorContainer inThread={inThread}>
       <div className="floor-composer-panel">
         {conversation.issueImages.length > 0 && (
           <div className="floor-issue-preview" aria-label="Bilder till buggrapport">
@@ -155,6 +189,6 @@ export function CoachFloor({
           {conversation.photoError || dictation.error || (dictation.interim ? dictation.interim : "Lyssnar … tryck på stopp när du är klar.")}
         </p>
       )}
-    </div>
+    </FloorContainer>
   );
 }

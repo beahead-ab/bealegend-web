@@ -241,7 +241,7 @@ export function TodayView({ onSignOut, user, preview }: {
    * följt med till nästa gång man öppnade ett pass — och då hade passets egen
    * tillbakaknapp pekat på passet självt, alltså inte gjort någonting.
   */
-  const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session">("today");
+  const [programReturnSurface, setProgramReturnSurface] = useState<"today" | "session" | "plan">("today");
   // Samtalet öppnas ovanpå den yta som bad om det. På mobil är det fortfarande
   // helskärm; på desktop ligger samma tråd bredvid och ytan finns kvar.
   const openThreadFrom = (source: Surface) => go({ ...route, surface: source, chatOpen: true });
@@ -473,7 +473,7 @@ export function TodayView({ onSignOut, user, preview }: {
         conversation={conversation}
         onClose={() => setSurface("today")}
         onOpenThread={() => openThreadFrom("plan")}
-        onOpenProgram={() => setSurface("program")}
+        onOpenProgram={() => { setProgramReturnSurface("plan"); setSurface("program"); }}
         onOpenSession={(day) => go({ ...route, date: day, surface: "session" })}
       />
     );
@@ -491,6 +491,7 @@ export function TodayView({ onSignOut, user, preview }: {
         onOpenThread={() => openThreadFrom("program")}
         // Programmet bärs i adressen, så en sida man tittar på går att skicka.
         onOpenProgram={(id) => go({ ...route, surface: "program", program: id })}
+        onOpenPlan={() => setSurface("plan")}
       />
     );
   }
