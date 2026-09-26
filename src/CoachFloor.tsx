@@ -32,11 +32,16 @@ export function CoachFloor({
   // Grows with the text to a ceiling, then scrolls inside itself. Never
   // truncated, never an ellipsis (§3.2).
   useEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    element.style.height = "auto";
-    element.style.height = `${Math.min(element.scrollHeight, 148)}px`;
-  }, [conversation.draft]);
+    const resize = () => {
+      const element = field.current;
+      if (!element) return;
+      element.style.height = "auto";
+      element.style.height = `${Math.min(element.scrollHeight, 148)}px`;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [conversation.draft, conversation.isActive, conversation.lastLine, inThread]);
 
   // A keyboard user who opens the panel has already chosen to speak. Move the
   // caret into the same field once it is visible; closing returns focus to the

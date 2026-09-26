@@ -27,6 +27,17 @@ const render = async (conversation: Conversation) => {
 };
 
 describe("bug report composer, iOS issue 121 parity", () => {
+  it("reflows existing text after a viewport resize and keeps the height ceiling", async () => {
+    await render(report());
+    const field = host.querySelector("textarea")!;
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 90 });
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    expect(field.style.height).toBe("90px");
+    Object.defineProperty(field, "scrollHeight", { configurable: true, value: 220 });
+    await act(async () => window.dispatchEvent(new Event("resize")));
+    expect(field.style.height).toBe("148px");
+  });
+
   it("keeps the issue hint accessible without a floating text label", async () => {
     await render(report());
     expect(host.textContent).not.toContain("Buggrapport");
