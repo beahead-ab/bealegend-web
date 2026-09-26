@@ -66,6 +66,14 @@ describe("readRoute", () => {
 });
 
 describe("routeSearch", () => {
+  it("restores settings behind chat and returns to settings when chat closes", () => {
+    const route = readRoute("?v=installningar", TODAY);
+    expect(route.surface).toBe("settings");
+    const chat = routeSearch({ ...route, chatOpen: true }, TODAY);
+    expect(chat).toBe("?v=chatt&bak=installningar");
+    expect(readRoute(chat, TODAY).surface).toBe("settings");
+    expect(routeSearch({ ...readRoute(chat, TODAY), chatOpen: false }, TODAY)).toBe("?v=installningar");
+  });
   /** The address people see most says nothing, because they are already there. */
   it("writes nothing for today's day view", () => {
     expect(routeSearch({ date: TODAY, surface: "today" }, TODAY)).toBe("");

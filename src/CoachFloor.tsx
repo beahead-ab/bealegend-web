@@ -68,75 +68,79 @@ export function CoachFloor({
 
   return (
     <div className="floor">
-      {conversation.issueImages.length > 0 && (
-        <div className="floor-issue-preview" aria-label="Bilder till buggrapport">
-          <div className="floor-issue-thumbnails">
-            {conversation.issueImages.map((image, index) => (
-              <img key={`${image.slice(-24)}-${index}`} src={image} alt={`Buggbild ${index + 1}`} />
-            ))}
+      <div className="floor-composer-panel">
+        {conversation.issueImages.length > 0 && (
+          <div className="floor-issue-preview" aria-label="Bilder till buggrapport">
+            <div className="floor-issue-thumbnails">
+              {conversation.issueImages.map((image, index) => (
+                <img key={`${image.slice(-24)}-${index}`} src={image} alt={`Buggbild ${index + 1}`} />
+              ))}
+            </div>
+            <span>{conversation.issueImages.length} av 4 bilder</span>
+            <button type="button" onClick={conversation.clearIssueImages} disabled={conversation.answering}>Ta bort</button>
           </div>
-          <span>{conversation.issueImages.length} av 4 bilder</span>
-          <button type="button" onClick={conversation.clearIssueImages}>Ta bort</button>
-        </div>
-      )}
-      <div className="floor-composer">
-        <input
-          ref={camera}
-          className="floor-file"
-          type="file"
-          accept="image/*"
-          capture={conversation.isIssueDraft ? undefined : "environment"}
-          multiple={conversation.isIssueDraft}
-          tabIndex={-1}
-          aria-hidden="true"
-          onChange={(event) => {
-            const files = Array.from(event.currentTarget.files ?? []);
-            event.currentTarget.value = "";
-            if (!files.length) return;
-            onOpenThread();
-            if (conversation.isIssueDraft) void conversation.stageIssueImages(files);
-            else void conversation.sendImage(files[0]);
-          }}
-        />
-        <button
-          className="floor-camera"
-          onClick={() => camera.current?.click()}
-          aria-label="Fotografera eller välj bild"
-          disabled={conversation.answering}
-        >
-          <CameraIcon />
-        </button>
-        <textarea
-          ref={field}
-          data-chat-entry
-          rows={1}
-          value={conversation.draft}
-          placeholder="Fråga, logga eller be om något …"
-          onChange={(event) => conversation.setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            // Enter sends, shift+enter breaks the line — what a chat field is
-            // expected to do, and the reason the field is a textarea at all.
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-          }}
-        />
-
-        {/* Listening outranks send. Dictation fills the field as it hears, so
-            without this the button you press to stop vanishes under the send
-            button on the first word spoken — the bug iOS found. */}
-        {dictation.listening ? (
-          <button className="floor-stop" onClick={dictation.toggle} aria-label="Sluta diktera"><StopIcon /></button>
-        ) : conversation.answering ? (
-          <span className="floor-spinner" aria-label="Coachen svarar" />
-        ) : conversation.canSend ? (
-          <button className="floor-send" onClick={submit} aria-label="Skicka"><SendIcon /></button>
-        ) : dictation.supported ? (
-          <button className="floor-mic" onClick={dictation.toggle} aria-label="Diktera"><MicIcon /></button>
-        ) : (
-          <button className="floor-send" disabled aria-label="Skicka"><SendIcon /></button>
         )}
+        <div className="floor-composer">
+          <input
+            ref={camera}
+            className="floor-file"
+            type="file"
+            accept="image/*"
+            capture={conversation.isIssueDraft ? undefined : "environment"}
+            multiple={conversation.isIssueDraft}
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(event) => {
+              const files = Array.from(event.currentTarget.files ?? []);
+              event.currentTarget.value = "";
+              if (!files.length) return;
+              onOpenThread();
+              if (conversation.isIssueDraft) void conversation.stageIssueImages(files);
+              else void conversation.sendImage(files[0]);
+            }}
+          />
+          <button
+            className="floor-camera"
+            onClick={() => camera.current?.click()}
+            aria-label={conversation.isIssueDraft ? "Bifoga bilder till buggrapporten" : "Fotografera eller välj bild"}
+            title={conversation.isIssueDraft ? "Välj upp till fyra bilder." : undefined}
+            disabled={conversation.answering}
+          >
+            <CameraIcon />
+          </button>
+          <textarea
+            ref={field}
+            data-chat-entry
+            rows={1}
+            value={conversation.draft}
+            aria-label={conversation.isIssueDraft ? "Buggrapport" : "Meddelande"}
+            placeholder="Fråga, logga eller be om något …"
+            onChange={(event) => conversation.setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              // Enter sends, shift+enter breaks the line — what a chat field is
+              // expected to do, and the reason the field is a textarea at all.
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                submit();
+              }
+            }}
+          />
+
+          {/* Listening outranks send. Dictation fills the field as it hears, so
+              without this the button you press to stop vanishes under the send
+              button on the first word spoken — the bug iOS found. */}
+          {dictation.listening ? (
+            <button className="floor-stop" onClick={dictation.toggle} aria-label="Sluta diktera"><StopIcon /></button>
+          ) : conversation.answering ? (
+            <span className="floor-spinner" aria-label="Coachen svarar" />
+          ) : conversation.canSend ? (
+            <button className="floor-send" onClick={submit} aria-label="Skicka"><SendIcon /></button>
+          ) : dictation.supported ? (
+            <button className="floor-mic" onClick={dictation.toggle} aria-label="Diktera"><MicIcon /></button>
+          ) : (
+            <button className="floor-send" disabled aria-label="Skicka"><SendIcon /></button>
+          )}
+        </div>
       </div>
 
       {/* A microphone that is listening and one that was refused look
