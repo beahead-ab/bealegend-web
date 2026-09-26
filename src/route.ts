@@ -1,6 +1,6 @@
 import { isoDate } from "./daily";
 
-export type Surface = "today" | "session" | "program" | "plan";
+export type Surface = "today" | "session" | "program" | "plan" | "settings";
 
 export type Route = {
   date: Date;
@@ -32,12 +32,14 @@ const SURFACE_PARAM: Record<Exclude<Surface, "today">, string> = {
   session: "pass",
   program: "program",
   plan: "planen",
+  settings: "installningar",
 };
 
 const PARAM_SURFACE: Record<string, Surface> = {
   pass: "session",
   program: "program",
   planen: "plan",
+  installningar: "settings",
 };
 
 function dateFrom(text: string | null): Date | null {

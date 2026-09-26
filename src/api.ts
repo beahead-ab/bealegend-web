@@ -25,9 +25,14 @@ export class ApiError extends Error {
 async function errorFrom(response: Response): Promise<ApiError> {
   const body = await response.json().catch(() => null);
   const error = body?.error;
+  const avatarMessage = response.status === 502 && error?.code === "avatar_storage_unavailable"
+    ? error.message === "Bildlagring är inte konfigurerad."
+      ? "Profilbilder är inte aktiverade ännu. Kontakta administratören."
+      : "Bildlagringen är tillfälligt otillgänglig. Försök igen senare."
+    : null;
   return new ApiError(
     response.status,
-    error?.message || "Tjänsten kunde inte nås just nu. Försök igen om en stund.",
+    avatarMessage || error?.message || "Tjänsten kunde inte nås just nu. Försök igen om en stund.",
     error?.code,
     body,
   );
