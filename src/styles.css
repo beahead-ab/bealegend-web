@@ -378,6 +378,9 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 
 .group-card { padding: 14px 18px; margin-bottom: 14px; }
+.steps-module { padding-block: 10px; }
+.steps-caption { font-size: 13px; margin: 6px 0; }
+.steps-distance { font-size: 15px; margin: 10px 0 0; }
 .group-card h2 {
   margin: 0 0 2px;
   font-size: 11px;

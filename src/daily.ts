@@ -21,6 +21,10 @@ export type DailyOverview = {
     steps: number;
     step_goal: number;
     active_calories: number;
+    /** Actual daily walking/running distance, never inferred from steps. */
+    distance_km?: number | null;
+    /** Absent on old servers; null means no step observation for this day. */
+    steps_measured_at?: string | null;
     /**
      * När hälsodata senast nådde dagen. Null betyder att ingenting mätts —
      * inte att allt är noll.

@@ -366,7 +366,7 @@ describe("vad som räknas som mätt", () => {
 
   it("räknar dagen som mätt så snart något av talen rört sig", () => {
     expect(WORDS["daily.steps"].measured?.(overviewWith({ steps: 12 }))).toBe(true);
-    expect(WORDS["daily.steps"].measured?.(overviewWith({ active_calories: 40 }))).toBe(true);
+    expect(WORDS["daily.steps"].measured?.(overviewWith({ active_calories: 40 }))).toBe(false);
   });
 
   it("läser veckans pass ur dagens serverkontrakt", () => {

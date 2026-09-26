@@ -1,5 +1,6 @@
 import { request } from "./api";
 import { healthMeasured, swedishNumber, type DailyOverview } from "./daily";
+import { measuredSteps } from "./dailyMovement";
 
 export type DashboardWidget = {
   binding: string;
@@ -289,13 +290,16 @@ export const WORDS: Record<string, Word> = {
     title: "Steg",
     group: "Hälsa",
     source: "day",
-    measured: healthSynced,
+    measured: (overview) => measuredSteps(overview) !== null,
     value: (overview) => {
       const health = overview.health;
       if (health.step_goal <= 0) return swedishNumber(health.steps);
       return `${swedishNumber(health.steps)} av ${swedishNumber(health.step_goal)}`;
     },
-    progress: (overview) => goalProgress(overview.health.steps, overview.health.step_goal),
+    progress: (overview) => {
+      const steps = measuredSteps(overview);
+      return steps === null ? null : goalProgress(steps, overview.health.step_goal);
+    },
   },
   "daily.activeEnergy": {
     title: "Aktiva kalorier",

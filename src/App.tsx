@@ -22,7 +22,7 @@ function previewDay(): DailyOverview {
       remaining: 602,
       is_over: false,
     },
-    health: { steps: 4_331, step_goal: 7_000, active_calories: 286 },
+    health: { steps: 4_331, step_goal: 7_000, active_calories: 286, distance_km: 3.21, steps_measured_at: new Date().toISOString() },
     macros: {
       protein: 128,
       carbs: 81,
